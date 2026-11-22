@@ -1,4 +1,4 @@
-.PHONY: help setup clone-third-party venv download-weights check-gpu smoke-data smoke-test fetch-map track export clean
+.PHONY: help setup clone-third-party venv download-weights check-gpu smoke-data smoke-test fetch-map track export serve clean
 
 UV          ?= uv
 PYTHON      := .venv/bin/python
@@ -46,7 +46,7 @@ clone-third-party: ## Clone pinned OrthoTrack and RoMaV2 into third_party/
 	fi
 
 venv: ## Create .venv (Python 3.11) and install dependencies from pyproject.toml via uv
-	$(UV) sync --python 3.11
+	$(UV) sync --python 3.11 --extra app
 
 download-weights: ## Pre-download RoMaV2 pretrained weights into torch hub cache
 	PYTHONPATH=$(ORTHOTRACK) $(PYTHON) -c "from romav2 import RoMaV2; RoMaV2(RoMaV2.Cfg(compile=False)); print('RoMaV2 weights ready.')"
@@ -90,10 +90,13 @@ fetch-map: ## Fetch SWISSIMAGE DOP + swissSURFACE3D DSM tiles (LAT, LON, RADIUS,
 
 track: ## Run OrthoTrack on custom video + map dir (VIDEO=..., MAP_DIR=..., OUT=...)
 	@test -n "$(VIDEO)" || (echo "Error: pass VIDEO=path/to/video.mp4" && exit 1)
+	@MAP_JSON=$$($(PYTHON) scripts/prepare_map.py --map-dir $(MAP_DIR) --radius-m $(RADIUS) | tail -n 15); \
+	DOP_FILE=$$(echo "$$MAP_JSON" | $(PYTHON) -c "import sys,json; s=sys.stdin.read(); print(json.loads(s[s.index('{'):])['dop_path'])"); \
+	DSM_FILE=$$(echo "$$MAP_JSON" | $(PYTHON) -c "import sys,json; s=sys.stdin.read(); print(json.loads(s[s.index('{'):])['dsm_path'])"); \
 	PYTHONPATH=$(ORTHOTRACK) $(PYTHON) $(ORTHOTRACK)/scripts/run_tracking.py \
 		--footage $(VIDEO) \
-		--dop $(MAP_DIR)/dop \
-		--dsm $(MAP_DIR)/dsm \
+		--dop "$$DOP_FILE" \
+		--dsm "$$DSM_FILE" \
 		--output $(OUT) \
 		--fine_matcher $(FINE_MATCHER) \
 		--save_keyframe_vis \
@@ -110,6 +113,9 @@ export: ## Convert OrthoTrack results.json -> WGS84 trajectory.json (OUT=..., MA
 		--map-dir $(MAP_DIR) \
 		$(if $(VIDEO),--video $(VIDEO),) \
 		--out $(OUT)/trajectory.json
+
+serve: ## Launch Groundframe Web Studio (FastAPI + CesiumJS) on http://localhost:8000
+	$(PYTHON) -m uvicorn app.server:app --host $${HOST:-0.0.0.0} --port $${PORT:-8000}
 
 clean: ## Remove generated outputs (keeps downloaded maps and .venv)
 	rm -rf outputs/

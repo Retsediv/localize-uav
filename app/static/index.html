@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Groundframe — 6-DoF UAV Visual Localization Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <!-- TOP HEADER -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="brand">
+        <span class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>
+        </span>
+        <span class="brand-name">Groundframe</span>
+        <span class="brand-tag" id="gpu-badge">RTX GPU</span>
+      </div>
+
+      <div class="flight-picker">
+        <label class="sr-only" for="flight-select">Select Flight</label>
+        <select id="flight-select" class="select-control"></select>
+        <button id="btn-delete-flight" class="icon-btn" title="Delete selected flight" aria-label="Delete selected flight">
+          <svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <button id="btn-new-flight" class="btn btn-primary">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        <span>New Flight</span>
+      </button>
+
+      <div class="dropdown" id="export-dropdown">
+        <button id="btn-export" class="btn btn-secondary">
+          <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>
+          <span>Export</span>
+        </button>
+        <div class="dropdown-menu" id="export-menu" hidden>
+          <button data-export="json">Trajectory JSON (.json)</button>
+          <button data-export="csv">OrthoTrack CSV (.csv)</button>
+          <button data-export="geojson">GeoJSON (.geojson)</button>
+          <button data-export="kml">Google Earth 3D KML (.kml)</button>
+        </div>
+      </div>
+
+      <button id="btn-settings" class="btn btn-secondary" title="API Keys & Runtime Settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE -->
+  <main class="studio">
+    <!-- TOP SPLIT: VIDEO + CESIUM 3D WORLD -->
+    <section class="viewport-grid" id="viewport-grid">
+      <!-- LEFT: REAL DRONE VIDEO -->
+      <div class="panel video-panel" id="video-panel">
+        <div class="panel-head">
+          <div class="panel-title-group">
+            <span class="panel-label">REAL DRONE VIDEO</span>
+            <span class="status-pill status-lost" id="hud-status-pill">NO DATA</span>
+          </div>
+          <div class="mono-meta" id="video-frame-meta">00:00.00 · Frame 0</div>
+        </div>
+        <div class="video-stage" id="video-stage">
+          <video id="drone-video" playsinline muted preload="auto"></video>
+          <div class="video-empty" id="video-empty" hidden>No source video attached to this flight.</div>
+          <div class="rejection-banner" id="rejection-banner" hidden>
+            <div class="rejection-title">LOCALIZATION REJECTED (0% COVERAGE)</div>
+            <div class="rejection-detail" id="rejection-detail"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: CESIUM 3D WORLD -->
+      <div class="panel cesium-panel" id="cesium-panel">
+        <div class="panel-head">
+          <div class="panel-title-group">
+            <span class="panel-label">CESIUM 3D WORLD</span>
+            <span class="tiles-badge" id="tiles-badge">Initializing...</span>
+          </div>
+
+          <div class="cesium-controls">
+            <div class="segmented" id="camera-mode-group" role="group" aria-label="3D Camera Mode">
+              <button data-mode="orbit" class="active">Orbit</button>
+              <button data-mode="chase">Chase</button>
+              <button data-mode="drone_eye">Drone-Eye</button>
+              <button data-mode="wipe">Wipe</button>
+            </div>
+            <label class="checkbox-pill" id="gt-toggle-wrap" title="Toggle withheld Ground Truth trajectory">
+              <input type="checkbox" id="toggle-gt" checked>
+              <span>GT</span>
+            </label>
+            <button id="btn-align-tune" class="btn-chip" title="Fine-tune 3D Tiles altitude & FoV alignment" hidden>Align</button>
+          </div>
+        </div>
+
+        <!-- Optional collapsible Align Fine-Tune bar (Drone-Eye & Wipe modes) -->
+        <div class="align-bar" id="align-bar" hidden>
+          <label class="align-field">
+            <span>Alt Δ</span>
+            <input type="range" id="align-alt" min="-25" max="25" step="0.5" value="0">
+            <span class="mono" id="align-alt-val">0.0 m</span>
+          </label>
+          <label class="align-field">
+            <span>FoV Δ</span>
+            <input type="range" id="align-fov" min="-12" max="12" step="0.5" value="0">
+            <span class="mono" id="align-fov-val">0.0°</span>
+          </label>
+          <button id="btn-align-reset" class="btn-chip">Reset</button>
+        </div>
+
+        <div class="cesium-stage" id="cesium-stage">
+          <div id="cesium-container"></div>
+          <!-- Wipe Compare overlay layer (reparents video clone/layer visually over Cesium) -->
+          <div class="wipe-video-clip" id="wipe-video-clip" hidden>
+            <canvas id="wipe-video-canvas"></canvas>
+            <span class="wipe-tag wipe-tag-left">REAL DRONE VIDEO</span>
+          </div>
+          <span class="wipe-tag wipe-tag-right" id="wipe-tag-right" hidden>CESIUM DRONE-EYE 3D</span>
+          <div class="wipe-divider" id="wipe-divider" hidden>
+            <div class="wipe-handle" title="Drag to compare real video vs 3D Tiles">
+              <svg viewBox="0 0 24 24"><path d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TIMELINE SCRUBBER -->
+    <section class="panel timeline-bar">
+      <div class="timeline-transport">
+        <button id="btn-play" class="icon-btn transport-play" title="Play / Pause (Space)" aria-label="Play or Pause">
+          <svg id="icon-play" viewBox="0 0 24 24"><polygon points="6,4 20,12 6,20" fill="currentColor" stroke="none"/></svg>
+          <svg id="icon-pause" viewBox="0 0 24 24" hidden><rect x="6" y="4" width="4" height="16" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" fill="currentColor" stroke="none"/></svg>
+        </button>
+        <button id="btn-prev-frame" class="btn-chip mono" title="Previous frame (←)">-1</button>
+        <button id="btn-next-frame" class="btn-chip mono" title="Next frame (→)">+1</button>
+        <span class="mono timeline-clock" id="timeline-clock">00:00.00 / 00:00.00</span>
+      </div>
+
+      <div class="timeline-track-wrap" id="timeline-track-wrap">
+        <div class="timeline-segments" id="timeline-segments"></div>
+        <div class="timeline-kf-ticks" id="timeline-kf-ticks"></div>
+        <div class="timeline-playhead" id="timeline-playhead"></div>
+        <input type="range" id="timeline-slider" min="0" max="100" value="0" step="1" aria-label="Frame timeline">
+      </div>
+
+      <div class="timeline-right">
+        <span class="mono kf-count-badge" id="kf-count-badge">0 KF</span>
+        <select id="speed-select" class="select-control select-compact" aria-label="Playback speed">
+          <option value="0.25">0.25×</option>
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- BOTTOM SPLIT: TELEMETRY HUD + EVIDENCE & CHARTS -->
+    <section class="bottom-grid">
+      <!-- TELEMETRY & SCORECARD -->
+      <div class="panel telemetry-panel">
+        <div class="panel-head">
+          <span class="panel-label">TELEMETRY HUD & SCORECARD</span>
+          <button id="btn-copy-coords" class="btn-chip" title="Copy current Lat, Lon">Copy Lat/Lon</button>
+        </div>
+
+        <div class="telemetry-grid">
+          <div class="metric-cell">
+            <span class="metric-k">WGS84 LAT / LON</span>
+            <span class="metric-v mono" id="tel-latlon">—</span>
+          </div>
+          <div class="metric-cell">
+            <span class="metric-k">ALTITUDE (MAP / WGS84)</span>
+            <span class="metric-v mono" id="tel-alt">—</span>
+          </div>
+          <div class="metric-cell">
+            <span class="metric-k">HEADING / COURSE</span>
+            <span class="metric-v mono" id="tel-heading">—</span>
+          </div>
+          <div class="metric-cell">
+            <span class="metric-k">PITCH / ROLL</span>
+            <span class="metric-v mono" id="tel-pitchroll">—</span>
+          </div>
+          <div class="metric-cell">
+            <span class="metric-k">PNP INLIERS / TRACKED</span>
+            <span class="metric-v mono" id="tel-inliers">—</span>
+          </div>
+          <div class="metric-cell">
+            <span class="metric-k">REPROJ / LATENCY</span>
+            <span class="metric-v mono" id="tel-reproj">—</span>
+          </div>
+        </div>
+
+        <div class="scorecard-strip" id="scorecard-strip">
+          <div class="score-item">
+            <span class="metric-k">COVERAGE</span>
+            <span class="score-v mono" id="sc-coverage">—</span>
+          </div>
+          <div class="score-item">
+            <span class="metric-k">KEYFRAMES</span>
+            <span class="score-v mono" id="sc-keyframes">—</span>
+          </div>
+          <div class="score-item">
+            <span class="metric-k">MED HORIZ ERR</span>
+            <span class="score-v mono" id="sc-horiz">—</span>
+          </div>
+          <div class="score-item">
+            <span class="metric-k">P95 HORIZ</span>
+            <span class="score-v mono" id="sc-p95">—</span>
+          </div>
+          <div class="score-item">
+            <span class="metric-k">MED VERT / ROT</span>
+            <span class="score-v mono" id="sc-vertrot">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- EVIDENCE & SYNCHRONIZED CHARTS -->
+      <div class="panel evidence-panel">
+        <div class="panel-head">
+          <div class="segmented" id="evidence-tabs">
+            <button data-tab="matches" class="active">Keyframe Matches</button>
+            <button data-tab="charts">Synchronized Charts</button>
+          </div>
+          <div class="kf-kind-pills" id="kf-kind-pills"></div>
+        </div>
+
+        <div class="evidence-body" id="tab-matches">
+          <div class="kf-viewer" id="kf-viewer">
+            <img id="kf-image" alt="RoMaV2 keyframe matches visualization" hidden>
+            <div class="kf-empty" id="kf-empty">No RoMaV2 keyframe match visualizations available for this flight.</div>
+          </div>
+        </div>
+
+        <div class="evidence-body charts-body" id="tab-charts" hidden>
+          <div class="chart-row">
+            <span class="chart-title">ALTITUDE (m)</span>
+            <canvas id="chart-alt"></canvas>
+          </div>
+          <div class="chart-row">
+            <span class="chart-title">TRACKED INLIERS & REPROJ (px)</span>
+            <canvas id="chart-inliers"></canvas>
+          </div>
+          <div class="chart-row" id="chart-error-row" hidden>
+            <span class="chart-title">POSITION ERROR vs GT (m)</span>
+            <canvas id="chart-error"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL: + NEW FLIGHT -->
+  <div class="modal-backdrop" id="modal-new-flight" hidden>
+    <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="new-flight-title">
+      <div class="modal-head">
+        <div>
+          <h2 id="new-flight-title">New Localization Flight</h2>
+          <p class="modal-sub">Drop a drone video or select from library, configure 3D map prior &amp; OrthoTrack parameters.</p>
+        </div>
+        <button class="icon-btn modal-close" data-close="modal-new-flight" aria-label="Close">
+          <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <form id="form-new-flight" class="modal-body">
+        <!-- 1. VIDEO -->
+        <fieldset class="form-section">
+          <legend>1. Drone Video</legend>
+          <div class="form-row-2">
+            <div class="dropzone" id="video-dropzone">
+              <input type="file" id="input-video-file" accept=".mp4,.mov,.mkv,.avi,.webm" hidden>
+              <div class="dropzone-text" id="video-dropzone-text">
+                <strong>Drag &amp; drop .mp4 / .mov</strong> or click to upload
+                <span class="muted-sm">Non-H.264 / .mov auto-transcoded for frame-exact browser sync</span>
+              </div>
+            </div>
+            <div class="field-stack">
+              <label class="field">
+                <span>Or choose local video (data/videos/)</span>
+                <select id="select-local-video" class="select-control"></select>
+              </label>
+              <label class="field">
+                <span>Flight Name</span>
+                <input type="text" id="input-flight-name" class="input-control" placeholder="e.g. Zurich Limmat Flight">
+              </label>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- 2. LOCATION & 3D MAP -->
+        <fieldset class="form-section">
+          <legend>2. Location &amp; 3D Map Prior</legend>
+          <div class="segmented segmented-full" id="loc-mode-group">
+            <button type="button" data-loc="auto" class="active">1. Auto (Video-only via VLM)</button>
+            <button type="button" data-loc="pin">2. Pin on Map (swisstopo)</button>
+            <button type="button" data-loc="local_map">3. Saved Local Map</button>
+          </div>
+
+          <div id="loc-panel-auto" class="loc-panel">
+            <p class="hint-text" id="vlm-mode-hint">
+              OpenRouter Vision inspects initial video frames to infer approximate (lat, lon) → matches cached local maps or auto-fetches swisstopo 10cm DOP + 50cm DSM tiles.
+            </p>
+            <label class="field field-inline">
+              <span>Search radius</span>
+              <input type="range" id="input-auto-radius" min="400" max="1500" step="100" value="600">
+              <span class="mono" id="auto-radius-val">600 m</span>
+            </label>
+          </div>
+
+          <div id="loc-panel-pin" class="loc-panel" hidden>
+            <div class="pin-toolbar">
+              <span class="mono" id="pin-coords-readout">47.3700, 8.5425</span>
+              <div class="pin-presets">
+                <button type="button" class="btn-chip" data-pin="47.3700,8.5425">Zurich</button>
+                <button type="button" class="btn-chip" data-pin="47.0516,8.3075">Lucerne</button>
+                <button type="button" class="btn-chip" data-pin="46.9480,7.4474">Bern</button>
+              </div>
+              <label class="field-inline">
+                <span>Radius</span>
+                <input type="range" id="input-pin-radius" min="400" max="1500" step="100" value="600">
+                <span class="mono" id="pin-radius-val">600 m</span>
+              </label>
+            </div>
+            <div id="pin-map" class="pin-map"></div>
+          </div>
+
+          <div id="loc-panel-local" class="loc-panel" hidden>
+            <label class="field">
+              <span>Cached Map Directory / MovingDrone Scene</span>
+              <select id="select-local-map" class="select-control"></select>
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- 3. CAMERA CALIBRATION & TRACKING -->
+        <div class="form-row-2">
+          <fieldset class="form-section">
+            <legend>3. Camera Calibration</legend>
+            <div class="segmented segmented-full" id="calib-mode-group">
+              <button type="button" data-calib="auto" class="active">Auto FoV</button>
+              <button type="button" data-calib="file">intrinsics.json</button>
+              <button type="button" data-calib="manual_fov">Manual FoV</button>
+            </div>
+            <div id="calib-panel-file" class="calib-sub" hidden>
+              <input type="file" id="input-intrinsics-file" accept=".json">
+              <span class="mono muted-sm" id="intrinsics-status"></span>
+            </div>
+            <div id="calib-panel-manual" class="calib-sub" hidden>
+              <label class="field">
+                <span>Vertical FoV (degrees)</span>
+                <input type="number" id="input-manual-fov" class="input-control" value="48" min="10" max="120" step="0.5">
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="form-section">
+            <legend>4. Tracking (OrthoTrack)</legend>
+            <div class="form-row-2">
+              <label class="field">
+                <span>Fine Matcher</span>
+                <select id="select-fine-matcher" class="select-control">
+                  <option value="base" selected>base (fast &amp; accurate, ~2s/KF)</option>
+                  <option value="precise">precise (max accuracy, ~7.5s/KF)</option>
+                  <option value="turbo">turbo (fastest)</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Skip Frames</span>
+                <input type="number" id="input-skip-frames" class="input-control" value="1" min="1" max="10">
+              </label>
+            </div>
+            <div class="form-row-2">
+              <label class="field">
+                <span>Start Frame (opt)</span>
+                <input type="number" id="input-start-frame" class="input-control" placeholder="0" min="0">
+              </label>
+              <label class="field">
+                <span>End Frame (opt)</span>
+                <input type="number" id="input-end-frame" class="input-control" placeholder="All frames" min="1">
+              </label>
+            </div>
+            <label class="checkbox-inline" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);cursor:pointer;margin-top:2px;">
+              <input type="checkbox" id="input-save-kf-vis" style="accent-color:var(--mint);">
+              <span>Save keyframe match visuals (<code>--save_keyframe_vis</code>, adds ~5s/KF)</span>
+            </label>
+          </fieldset>
+        </div>
+
+        <!-- 5. OPTIONAL GROUND TRUTH -->
+        <fieldset class="form-section">
+          <legend>5. Accuracy Evaluation — Optional Ground Truth</legend>
+          <div class="gt-upload-row">
+            <input type="file" id="input-gt-file" accept=".csv,.srt,.SRT">
+            <span class="mono muted-sm" id="gt-file-status">Accepts OrthoTrack poses .csv or DJI .SRT telemetry subtitles</span>
+          </div>
+        </fieldset>
+
+        <div class="form-error" id="form-new-flight-error" hidden></div>
+
+        <div class="modal-foot">
+          <button type="button" class="btn btn-secondary" data-close="modal-new-flight">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-run-flight">Run Localization</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: LIVE PIPELINE STEPPER -->
+  <div class="modal-backdrop" id="modal-stepper" hidden>
+    <div class="modal modal-md" role="dialog" aria-modal="true" aria-labelledby="stepper-title">
+      <div class="modal-head">
+        <div>
+          <h2 id="stepper-title">Running Localization Pipeline</h2>
+          <p class="modal-sub mono" id="stepper-flight-id">—</p>
+        </div>
+        <span class="status-pill status-tracking" id="stepper-status-pill">RUNNING</span>
+      </div>
+
+      <div class="modal-body">
+        <ol class="stepper-list" id="stepper-list">
+          <li data-step="vlm_detect"><span class="step-dot"></span><div class="step-copy"><strong>VLM Region Detect</strong><span class="step-detail">Waiting...</span></div></li>
+          <li data-step="fetch_map"><span class="step-dot"></span><div class="step-copy"><strong>Fetch 3D Map</strong><span class="step-detail">Waiting...</span></div></li>
+          <li data-step="cold_start"><span class="step-dot"></span><div class="step-copy"><strong>Cold-Start Keyframe</strong><span class="step-detail">Waiting...</span></div></li>
+          <li data-step="frame_tracking"><span class="step-dot"></span><div class="step-copy"><strong>Frame Tracking</strong><span class="step-detail">Waiting...</span></div></li>
+          <li data-step="export_wgs84"><span class="step-dot"></span><div class="step-copy"><strong>Export WGS84</strong><span class="step-detail">Waiting...</span></div></li>
+        </ol>
+
+        <div class="stepper-progress-wrap" id="stepper-progress-wrap">
+          <div class="stepper-progress-bar"><div class="stepper-progress-fill" id="stepper-progress-fill"></div></div>
+          <div class="mono stepper-progress-meta" id="stepper-progress-meta">Initializing...</div>
+        </div>
+
+        <details class="terminal-details">
+          <summary>Terminal Log</summary>
+          <pre class="terminal-log" id="stepper-log"></pre>
+        </details>
+
+        <div class="modal-foot">
+          <button type="button" class="btn btn-danger" id="btn-cancel-job">Cancel Job</button>
+          <button type="button" class="btn btn-primary" id="btn-stepper-open" hidden>Open in Studio</button>
+          <button type="button" class="btn btn-secondary" id="btn-stepper-close" hidden>Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SETTINGS -->
+  <div class="modal-backdrop" id="modal-settings" hidden>
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-head">
+        <div>
+          <h2 id="settings-title">Runtime Settings &amp; API Keys</h2>
+          <p class="modal-sub">Defaults load from <code>.env</code>. Edits here apply in-memory &amp; localStorage without modifying <code>.env</code>.</p>
+        </div>
+        <button class="icon-btn modal-close" data-close="modal-settings" aria-label="Close">
+          <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form id="form-settings" class="modal-body">
+        <label class="field">
+          <span>Cesium ion Token <em class="key-state" id="state-cesium"></em></span>
+          <input type="password" id="set-cesium-token" class="input-control mono" placeholder="Paste override or leave blank to keep .env">
+        </label>
+        <label class="field">
+          <span>Google Maps Tile API Key (optional) <em class="key-state" id="state-gmaps"></em></span>
+          <input type="password" id="set-gmaps-key" class="input-control mono" placeholder="Optional direct Google 3D Tiles key">
+        </label>
+        <label class="field">
+          <span>OpenRouter API Key (VLM Auto Cold-Start) <em class="key-state" id="state-openrouter"></em></span>
+          <input type="password" id="set-openrouter-key" class="input-control mono" placeholder="sk-or-v1-...">
+        </label>
+        <label class="field">
+          <span>OpenRouter Vision Model</span>
+          <input type="text" id="set-openrouter-model" class="input-control mono" placeholder="google/gemini-2.5-flash">
+        </label>
+        <div class="modal-foot">
+          <button type="button" class="btn btn-secondary" data-close="modal-settings">Cancel</button>
+          <button type="submit" class="btn btn-primary">Apply Settings</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- LIGHTBOX FOR KEYFRAME MATCHES -->
+  <div class="modal-backdrop" id="modal-lightbox" hidden>
+    <div class="lightbox-wrap">
+      <button class="icon-btn lightbox-close" data-close="modal-lightbox" aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+      <img id="lightbox-img" alt="Keyframe match full view">
+    </div>
+  </div>
+
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.124/Build/Cesium/Cesium.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

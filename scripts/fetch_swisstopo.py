@@ -136,6 +136,7 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True, help="Output map directory (creates dop/ and dsm/)")
     parser.add_argument("--dop-gsd", type=str, default="0.1", help="Preferred DOP GSD in m/px (default: 0.1)")
     parser.add_argument("--dry-run", action="store_true", help="List tiles without downloading")
+    parser.add_argument("--no-prepare-cache", action="store_true", help="Skip building single-file 0.2m/px DOP + DSM cache")
     args = parser.parse_args()
 
     bbox_wgs84, (cx, cy) = bbox_wgs84_from_center(args.lat, args.lon, args.radius_m)
@@ -191,6 +192,20 @@ def main() -> None:
     meta_path = args.out / "map_meta.json"
     meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
     print(f"\nSaved map metadata to {meta_path}")
+
+    if not args.no_prepare_cache and dop_paths and dsm_paths:
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from scripts.prepare_map import prepare_single_file_map
+
+        prepare_single_file_map(
+            args.out,
+            lat=args.lat,
+            lon=args.lon,
+            radius_m=args.radius_m,
+            target_dop_gsd=0.2,
+            log_fn=print,
+        )
 
 
 if __name__ == "__main__":

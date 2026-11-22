@@ -44,7 +44,8 @@ def detect_crs_and_offset(
             utm_zone = meta.get("utm_zone")
             utm_offset = meta.get("utm_offset")
             if utm_offset and len(utm_offset) == 3:
-                offset = (float(utm_offset[0]), float(utm_offset[1]), float(utm_offset[2]))
+                # MovingDrone x,y are relative to utm_offset[0:2], while z is already absolute altitude.
+                offset = (float(utm_offset[0]), float(utm_offset[1]), 0.0)
             if crs_arg:
                 return crs_arg, "map_z", offset
             if utm_zone is not None:
