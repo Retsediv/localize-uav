@@ -14,6 +14,7 @@ const state = {
   fps: 24,
   frameIndex: 0,
   playing: false,
+  useSmooth: true,
   cameraMode: "orbit",
   wipeRatio: 0.5,
   activeKfIndex: 0,
@@ -41,6 +42,8 @@ const els = {
   cesiumStage: document.getElementById("cesium-stage"),
   tilesBadge: document.getElementById("tiles-badge"),
   cameraModeGroup: document.getElementById("camera-mode-group"),
+  toggleSmooth: document.getElementById("toggle-smooth"),
+  smoothToggleWrap: document.getElementById("smooth-toggle-wrap"),
   toggleGt: document.getElementById("toggle-gt"),
   gtToggleWrap: document.getElementById("gt-toggle-wrap"),
   btnAlignTune: document.getElementById("btn-align-tune"),
@@ -184,6 +187,24 @@ async function refreshFlights(selectFlightId = null) {
   await loadFlight(target);
 }
 
+function getActiveEst(frame) {
+  if (!frame) return null;
+  if (state.useSmooth && frame.est_smooth) return frame.est_smooth;
+  return frame.est || null;
+}
+
+function updateScorecard() {
+  const sum = state.flightData?.trajectory?.summary || {};
+  const m = (state.useSmooth && sum.metrics_smooth) ? sum.metrics_smooth : (sum.metrics || null);
+  els.scCoverage.textContent = `${sum.coverage_pct ?? 0}% (${sum.localized_frames ?? 0}/${sum.total_frames ?? 0})`;
+  els.scKeyframes.textContent = `${sum.keyframes ?? 0}`;
+  els.scHoriz.textContent = m?.median_horiz_m != null ? `${m.median_horiz_m} m` : "—";
+  els.scP95.textContent = m?.p95_horiz_m != null ? `${m.p95_horiz_m} m` : "—";
+  els.scVertRot.textContent = m?.median_vert_m != null
+    ? `${m.median_vert_m}m / ${m.median_rot_deg != null ? m.median_rot_deg + "°" : "—"}`
+    : "—";
+}
+
 async function loadFlight(flightId) {
   setPlaying(false);
   state.activeFlightId = flightId;
@@ -216,21 +237,20 @@ async function loadFlight(flightId) {
     els.rejectionDetail.textContent = data.meta?.rejection_reason || traj.summary?.rejection_reason || "No frames could be anchored to the 3D map.";
   }
 
+  // Smooth toggle availability (enabled by default when est_smooth is present)
+  const hasSmooth = state.frames.some((f) => f.est_smooth != null);
+  state.useSmooth = hasSmooth;
+  els.toggleSmooth.disabled = !hasSmooth;
+  els.toggleSmooth.checked = hasSmooth;
+  els.smoothToggleWrap.style.opacity = hasSmooth ? "1" : "0.45";
+
   // GT toggle availability
   const hasGt = state.frames.some((f) => f.gt != null);
   els.toggleGt.disabled = !hasGt;
   els.gtToggleWrap.style.opacity = hasGt ? "1" : "0.45";
 
   // Scorecard
-  const sum = traj.summary || {};
-  const m = sum.metrics || null;
-  els.scCoverage.textContent = `${sum.coverage_pct ?? 0}% (${sum.localized_frames ?? 0}/${sum.total_frames ?? 0})`;
-  els.scKeyframes.textContent = `${sum.keyframes ?? 0}`;
-  els.scHoriz.textContent = m?.median_horiz_m != null ? `${m.median_horiz_m} m` : "—";
-  els.scP95.textContent = m?.p95_horiz_m != null ? `${m.p95_horiz_m} m` : "—";
-  els.scVertRot.textContent = m?.median_vert_m != null
-    ? `${m.median_vert_m}m / ${m.median_rot_deg != null ? m.median_rot_deg + "°" : "—"}`
-    : "—";
+  updateScorecard();
 
   // Keyframes map
   state.keyframesByFrame.clear();
@@ -249,8 +269,8 @@ async function loadFlight(flightId) {
   buildTimelineOverlay();
 
   // 3D World & Charts
-  world.loadTrajectory(traj);
-  charts.setTrajectory(traj);
+  world.loadTrajectory(traj, state.useSmooth);
+  charts.setTrajectory(traj, state.useSmooth);
   applyFrame(0, false);
 }
 
@@ -349,7 +369,7 @@ function applyFrame(idx, updateCharts = true) {
   );
 
   // Telemetry HUD
-  const est = frame.est;
+  const est = getActiveEst(frame);
   if (est) {
     els.telLatLon.textContent = `${est.lat.toFixed(6)}, ${est.lon.toFixed(6)}`;
     els.telAlt.textContent = `${est.alt_map_m?.toFixed(1) ?? "—"} m / ${est.alt_wgs84_m?.toFixed(1) ?? "—"} m`;
@@ -547,7 +567,9 @@ function bindUIEvents() {
   els.exportMenu.addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-export]");
     if (!btn || !state.activeFlightId) return;
-    window.location.href = `/api/flights/${encodeURIComponent(state.activeFlightId)}/export/${btn.dataset.export}`;
+    const fmt = btn.dataset.export;
+    const qs = (fmt === "geojson" || fmt === "kml") ? `?smoothed=${state.useSmooth ? "true" : "false"}` : "";
+    window.location.href = `/api/flights/${encodeURIComponent(state.activeFlightId)}/export/${fmt}${qs}`;
   });
 
   // Camera modes
@@ -555,6 +577,15 @@ function bindUIEvents() {
     const btn = e.target.closest("button[data-mode]");
     if (!btn) return;
     setCameraMode(btn.dataset.mode);
+  });
+
+  // Smooth toggle (updates 3D trajectory + frustum, Drone-Eye/Wipe camera, HUD, scorecard, charts)
+  els.toggleSmooth.addEventListener("change", () => {
+    state.useSmooth = els.toggleSmooth.checked;
+    world.setUseSmooth(state.useSmooth);
+    charts.setUseSmooth(state.useSmooth);
+    updateScorecard();
+    applyFrame(state.frameIndex, false);
   });
 
   // GT toggle
@@ -614,9 +645,9 @@ function bindUIEvents() {
 
   // Copy coords
   els.btnCopyCoords.addEventListener("click", async () => {
-    const f = state.frames[state.frameIndex];
-    if (!f?.est) return;
-    const txt = `${f.est.lat.toFixed(6)}, ${f.est.lon.toFixed(6)}`;
+    const est = getActiveEst(state.frames[state.frameIndex]);
+    if (!est) return;
+    const txt = `${est.lat.toFixed(6)}, ${est.lon.toFixed(6)}`;
     await navigator.clipboard.writeText(txt).catch(() => {});
     els.btnCopyCoords.textContent = "Copied!";
     setTimeout(() => { els.btnCopyCoords.textContent = "Copy Lat/Lon"; }, 1100);
@@ -728,7 +759,7 @@ async function saveSettingsModal(e) {
   if (payload.cesium_ion_token || payload.google_maps_api_key) {
     await world.init(state.config);
     if (state.flightData?.trajectory) {
-      world.loadTrajectory(state.flightData.trajectory);
+      world.loadTrajectory(state.flightData.trajectory, state.useSmooth);
       applyFrame(state.frameIndex, false);
     }
   }

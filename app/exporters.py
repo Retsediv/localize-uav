@@ -4,16 +4,29 @@ from __future__ import annotations
 
 import json
 from html import escape
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
-def trajectory_to_geojson(traj: Dict[str, Any], name: str = "Groundframe Flight") -> str:
+def _pick_est(frame: Dict[str, Any], smoothed: bool) -> Optional[Dict[str, Any]]:
+    if smoothed and frame.get("est_smooth") is not None:
+        return frame["est_smooth"]
+    return frame.get("est")
+
+
+def trajectory_to_geojson(
+    traj: Dict[str, Any],
+    name: str = "Groundframe Flight",
+    smoothed: bool = True,
+) -> str:
     features: List[Dict[str, Any]] = []
     est_coords: List[List[float]] = []
     gt_coords: List[List[float]] = []
+    used_smoothed = False
 
     for f in traj.get("frames", []):
-        est = f.get("est")
+        if smoothed and f.get("est_smooth") is not None:
+            used_smoothed = True
+        est = _pick_est(f, smoothed)
         if est is not None:
             coord = [est["lon"], est["lat"], est.get("alt_wgs84_m", est.get("alt_map_m", 0.0))]
             est_coords.append(coord)
@@ -26,6 +39,7 @@ def trajectory_to_geojson(traj: Dict[str, Any], name: str = "Groundframe Flight"
                         "frame_id": f["frame_id"],
                         "timestamp_s": f["timestamp_s"],
                         "status": f["status"],
+                        "smoothed": smoothed and f.get("est_smooth") is not None,
                         "num_inliers": f.get("num_inliers", 0),
                         "heading_deg": est.get("heading_deg"),
                         "pitch_deg": est.get("pitch_deg"),
@@ -44,6 +58,7 @@ def trajectory_to_geojson(traj: Dict[str, Any], name: str = "Groundframe Flight"
             "properties": {
                 "kind": "estimated_trajectory",
                 "name": name,
+                "smoothed": used_smoothed,
                 "source_crs": traj.get("source_crs"),
                 "summary": traj.get("summary"),
             },
@@ -62,13 +77,20 @@ def trajectory_to_geojson(traj: Dict[str, Any], name: str = "Groundframe Flight"
     return json.dumps({"type": "FeatureCollection", "features": features}, indent=2)
 
 
-def trajectory_to_kml(traj: Dict[str, Any], name: str = "Groundframe Flight") -> str:
+def trajectory_to_kml(
+    traj: Dict[str, Any],
+    name: str = "Groundframe Flight",
+    smoothed: bool = True,
+) -> str:
     est_pts: List[str] = []
     gt_pts: List[str] = []
     kf_placemarks: List[str] = []
+    used_smoothed = False
 
     for f in traj.get("frames", []):
-        est = f.get("est")
+        if smoothed and f.get("est_smooth") is not None:
+            used_smoothed = True
+        est = _pick_est(f, smoothed)
         if est is not None:
             alt = est.get("alt_wgs84_m", est.get("alt_map_m", 0.0))
             est_pts.append(f"{est['lon']},{est['lat']},{alt}")
@@ -96,8 +118,9 @@ def trajectory_to_kml(traj: Dict[str, Any], name: str = "Groundframe Flight") ->
 
     est_line = ""
     if est_pts:
+        est_label = "Smoothed" if used_smoothed else "Estimated"
         est_line = f"""    <Placemark>
-      <name>{escape(name)} (Estimated)</name>
+      <name>{escape(name)} ({est_label})</name>
       <styleUrl>#estLine</styleUrl>
       <LineString>
         <extrude>1</extrude>

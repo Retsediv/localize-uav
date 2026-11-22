@@ -15,6 +15,7 @@ export class CesiumWorld {
     this.tileset = null;
     this.mode = "orbit"; // orbit | chase | drone_eye | wipe
     this.showGt = true;
+    this.useSmooth = true;
     this.altDeltaM = 0.0;
     this.fovDeltaDeg = 0.0;
 
@@ -135,11 +136,26 @@ export class CesiumWorld {
     }
   }
 
+  _getEst(frame) {
+    if (!frame) return null;
+    if (this.useSmooth && frame.est_smooth) return frame.est_smooth;
+    return frame.est || null;
+  }
+
   setShowGt(show) {
     this.showGt = show;
     const isFp = this.mode === "drone_eye" || this.mode === "wipe";
     for (const e of this._gtEntities) {
       e.show = show && !isFp;
+    }
+  }
+
+  setUseSmooth(useSmooth) {
+    this.useSmooth = Boolean(useSmooth);
+    if (!this.viewer || !this.trajectory) return;
+    this._rebuildEstimatedEntities();
+    if (this.currentFrame) {
+      this.updateFrame(this.currentFrame, false);
     }
   }
 
@@ -160,34 +176,24 @@ export class CesiumWorld {
     }
   }
 
-  loadTrajectory(trajectory) {
-    this.trajectory = trajectory;
-    this.currentFrame = null;
-    if (!this.viewer) return;
-
-    this.viewer.entities.removeAll();
-    this._trajEntities = [];
-    this._gtEntities = [];
-    this._droneEntities = [];
-
-    const intr = trajectory?.intrinsics;
-    if (intr && intr.width && intr.height) {
-      this.aspectRatio = intr.width / intr.height;
-    } else {
-      this.aspectRatio = 16 / 9;
+  _rebuildEstimatedEntities() {
+    if (!this.viewer || !this.trajectory) return;
+    for (const e of this._trajEntities) {
+      this.viewer.entities.remove(e);
     }
+    this._trajEntities = [];
 
-    const frames = trajectory?.frames || [];
+    const frames = this.trajectory?.frames || [];
     const okSegments = [];
     const predSegments = [];
     let curOk = [];
     let curPred = [];
-    const gtPositions = [];
     const kfPositions = [];
 
     for (const f of frames) {
-      if (f.est) {
-        const pos = Cesium.Cartesian3.fromDegrees(f.est.lon, f.est.lat, f.est.alt_wgs84_m ?? f.est.alt_map_m ?? 0);
+      const est = this._getEst(f);
+      if (est) {
+        const pos = Cesium.Cartesian3.fromDegrees(est.lon, est.lat, est.alt_wgs84_m ?? est.alt_map_m ?? 0);
         if (f.status === "PREDICTED") {
           if (curOk.length > 1) okSegments.push(curOk);
           curOk = [];
@@ -206,20 +212,17 @@ export class CesiumWorld {
         curOk = [];
         curPred = [];
       }
-
-      if (f.gt) {
-        gtPositions.push(
-          Cesium.Cartesian3.fromDegrees(f.gt.lon, f.gt.lat, f.gt.alt_wgs84_m ?? f.gt.alt_map_m ?? 0)
-        );
-      }
     }
     if (curOk.length > 1) okSegments.push(curOk);
     if (curPred.length > 1) predSegments.push(curPred);
+
+    const isFp = this.mode === "drone_eye" || this.mode === "wipe";
 
     // Draw estimated segments
     for (const seg of okSegments) {
       this._trajEntities.push(
         this.viewer.entities.add({
+          show: !isFp,
           polyline: {
             positions: seg,
             width: 3.5,
@@ -234,6 +237,7 @@ export class CesiumWorld {
     for (const seg of predSegments) {
       this._trajEntities.push(
         this.viewer.entities.add({
+          show: !isFp,
           polyline: {
             positions: seg,
             width: 3.0,
@@ -250,6 +254,7 @@ export class CesiumWorld {
     for (const kf of kfPositions) {
       this._trajEntities.push(
         this.viewer.entities.add({
+          show: !isFp,
           position: kf.pos,
           point: {
             pixelSize: 8,
@@ -259,6 +264,37 @@ export class CesiumWorld {
           },
         })
       );
+    }
+  }
+
+  loadTrajectory(trajectory, useSmooth = true) {
+    this.trajectory = trajectory;
+    this.useSmooth = Boolean(useSmooth);
+    this.currentFrame = null;
+    if (!this.viewer) return;
+
+    this.viewer.entities.removeAll();
+    this._trajEntities = [];
+    this._gtEntities = [];
+    this._droneEntities = [];
+
+    const intr = trajectory?.intrinsics;
+    if (intr && intr.width && intr.height) {
+      this.aspectRatio = intr.width / intr.height;
+    } else {
+      this.aspectRatio = 16 / 9;
+    }
+
+    this._rebuildEstimatedEntities();
+
+    const frames = trajectory?.frames || [];
+    const gtPositions = [];
+    for (const f of frames) {
+      if (f.gt) {
+        gtPositions.push(
+          Cesium.Cartesian3.fromDegrees(f.gt.lon, f.gt.lat, f.gt.alt_wgs84_m ?? f.gt.alt_map_m ?? 0)
+        );
+      }
     }
 
     // Draw Ground Truth polyline
@@ -331,8 +367,9 @@ export class CesiumWorld {
     if (!this.viewer || !this.trajectory) return;
     const pts = [];
     for (const f of this.trajectory.frames || []) {
-      if (f.est) {
-        pts.push(Cesium.Cartesian3.fromDegrees(f.est.lon, f.est.lat, f.est.alt_wgs84_m ?? f.est.alt_map_m ?? 0));
+      const est = this._getEst(f);
+      if (est) {
+        pts.push(Cesium.Cartesian3.fromDegrees(est.lon, est.lat, est.alt_wgs84_m ?? est.alt_map_m ?? 0));
       }
     }
     if (!pts.length) {
@@ -394,12 +431,12 @@ export class CesiumWorld {
 
   updateFrame(frame, forceCamera = false) {
     this.currentFrame = frame;
-    if (!this.viewer || !frame || !frame.est) {
+    const est = this._getEst(frame);
+    if (!this.viewer || !frame || !est) {
       this._dronePos = null;
       return;
     }
 
-    const est = frame.est;
     const baseAlt = (est.alt_wgs84_m ?? est.alt_map_m ?? 0) + this.altDeltaM;
     const { origin, rot3 } = this._enuToEcefBasis(est.lon, est.lat, baseAlt);
     this._dronePos = origin;

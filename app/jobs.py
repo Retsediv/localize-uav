@@ -649,6 +649,8 @@ class JobManager:
                     "--skip_frames",
                     str(int(p.get("skip_frames") or 1)),
                 ]
+                if p.get("accumulate_points", True):
+                    cmd.append("--accumulate_points")
                 if p.get("save_keyframe_vis", False):
                     cmd.append("--save_keyframe_vis")
 

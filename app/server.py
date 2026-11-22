@@ -244,7 +244,7 @@ def get_keyframe_image(flight_id: str, filename: str):
 
 
 @app.get("/api/flights/{flight_id}/export/{fmt}")
-def export_flight(flight_id: str, fmt: str):
+def export_flight(flight_id: str, fmt: str, smoothed: bool = True):
     flight_dir = (OUTPUTS_DIR / flight_id).resolve()
     if not flight_dir.is_relative_to(OUTPUTS_DIR.resolve()) or not flight_dir.exists():
         raise HTTPException(status_code=404, detail="Flight not found")
@@ -265,20 +265,21 @@ def export_flight(flight_id: str, fmt: str):
     traj = json.loads(traj_file.read_text(encoding="utf-8"))
     meta = _infer_flight_meta(flight_dir, traj)
     name = meta.get("name", flight_id)
+    suffix = "" if smoothed else "_raw"
 
     if fmt == "geojson":
-        content = trajectory_to_geojson(traj, name=name)
+        content = trajectory_to_geojson(traj, name=name, smoothed=smoothed)
         return Response(
             content=content,
             media_type="application/geo+json",
-            headers={"Content-Disposition": f'attachment; filename="{flight_id}.geojson"'},
+            headers={"Content-Disposition": f'attachment; filename="{flight_id}{suffix}.geojson"'},
         )
     if fmt == "kml":
-        content = trajectory_to_kml(traj, name=name)
+        content = trajectory_to_kml(traj, name=name, smoothed=smoothed)
         return Response(
             content=content,
             media_type="application/vnd.google-earth.kml+xml",
-            headers={"Content-Disposition": f'attachment; filename="{flight_id}.kml"'},
+            headers={"Content-Disposition": f'attachment; filename="{flight_id}{suffix}.kml"'},
         )
     raise HTTPException(status_code=400, detail=f"Unsupported export format: {fmt}")
 
@@ -426,6 +427,7 @@ class JobCreateRequest(BaseModel):
     skip_frames: int = 1
     start_frame: Optional[int] = None
     end_frame: Optional[int] = None
+    accumulate_points: bool = True
     save_keyframe_vis: bool = False
     gt_path: Optional[str] = None
     openrouter_api_key: Optional[str] = None

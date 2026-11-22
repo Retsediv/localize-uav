@@ -103,6 +103,10 @@
               <button data-mode="drone_eye" title="Exact 6-DoF drone camera (3)">Drone-Eye</button>
               <button data-mode="wipe" title="Split curtain compare (4)">Wipe</button>
             </div>
+            <label class="checkbox-pill checkbox-pill-smooth" id="smooth-toggle-wrap" title="Toggle zero-phase RTS smoothed trajectory vs raw PnP">
+              <input type="checkbox" id="toggle-smooth" checked>
+              <span>Smooth</span>
+            </label>
             <label class="checkbox-pill" id="gt-toggle-wrap" title="Toggle withheld Ground Truth trajectory">
               <input type="checkbox" id="toggle-gt" checked>
               <span>GT</span>
@@ -488,7 +492,7 @@
         <details class="advanced-drawer" id="advanced-drawer">
           <summary>
             <span>Advanced Pipeline Settings</span>
-            <span class="mono advanced-summary" id="advanced-summary">Auto FoV · base · skip=1 · vis=off</span>
+            <span class="mono advanced-summary" id="advanced-summary">Auto FoV · base · skip=1 · accum=on · vis=off</span>
           </summary>
 
           <div class="advanced-grid">
@@ -537,6 +541,10 @@
                   <input type="number" id="input-end-frame" class="input-control" placeholder="All frames" min="1">
                 </label>
               </div>
+              <label class="checkbox-inline">
+                <input type="checkbox" id="input-accumulate-points" checked>
+                <span>Merge stable tracks on keyframes (<code>--accumulate_points</code>, reduces KF jumps)</span>
+              </label>
               <label class="checkbox-inline">
                 <input type="checkbox" id="input-save-kf-vis">
                 <span>Save keyframe match visuals (<code>--save_keyframe_vis</code>, +5s/KF)</span>

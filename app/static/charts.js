@@ -13,6 +13,7 @@ export class SyncCharts {
     this.frames = [];
     this.currentIndex = 0;
     this.hasGt = false;
+    this.useSmooth = true;
 
     for (const c of [this.altCanvas, this.inliersCanvas, this.errorCanvas]) {
       if (!c) continue;
@@ -21,13 +22,21 @@ export class SyncCharts {
     window.addEventListener("resize", () => this.render());
   }
 
-  setTrajectory(trajectory) {
+  setTrajectory(trajectory, useSmooth = true) {
     this.frames = trajectory?.frames || [];
-    this.hasGt = this.frames.some((f) => f.error && f.error.horiz_m != null);
+    this.useSmooth = Boolean(useSmooth);
+    this.hasGt = this.frames.some(
+      (f) => (f.error && f.error.horiz_m != null) || (f.error_smooth && f.error_smooth.horiz_m != null)
+    );
     if (this.errorRow) {
       this.errorRow.hidden = !this.hasGt;
     }
     this.currentIndex = 0;
+    this.render();
+  }
+
+  setUseSmooth(useSmooth) {
+    this.useSmooth = Boolean(useSmooth);
     this.render();
   }
 
@@ -61,7 +70,30 @@ export class SyncCharts {
     return { ctx, w: rect.width, h: rect.height };
   }
 
-  _drawSeries(canvas, seriesList) {
+  _computeBounds(finite, minFloor = null, minSpan = 0) {
+    let minV = minFloor != null ? minFloor : Math.min(...finite);
+    let maxV = Math.max(...finite);
+    if (minFloor != null) {
+      minV = Math.min(minV, Math.min(...finite));
+    }
+    const rawSpan = maxV - minV;
+    if (minSpan > 0 && rawSpan < minSpan) {
+      if (minFloor != null) {
+        minV = minFloor;
+        maxV = Math.max(maxV, minFloor + minSpan);
+      } else {
+        const mid = (minV + maxV) / 2;
+        minV = mid - minSpan / 2;
+        maxV = mid + minSpan / 2;
+      }
+    } else if (rawSpan < 1e-3) {
+      minV -= 1;
+      maxV += 1;
+    }
+    return { minV, maxV };
+  }
+
+  _drawSeries(canvas, seriesList, opts = {}) {
     const p = this._prep(canvas);
     if (!p || !this.frames.length) return;
     const { ctx, w, h } = p;
@@ -82,21 +114,29 @@ export class SyncCharts {
       ctx.stroke();
     }
 
+    let sharedBounds = null;
+    if (opts.sharedScale) {
+      const allFinite = [];
+      for (const s of seriesList) {
+        for (const v of s.values) {
+          if (v != null && Number.isFinite(v)) allFinite.push(v);
+        }
+      }
+      if (allFinite.length) {
+        sharedBounds = this._computeBounds(allFinite, opts.min ?? null, opts.minSpan ?? 0);
+      }
+    }
+
     for (const s of seriesList) {
       const vals = s.values;
       const finite = vals.filter((v) => v != null && Number.isFinite(v));
       if (!finite.length) continue;
-      let minV = s.min != null ? s.min : Math.min(...finite);
-      let maxV = Math.max(...finite);
-      if (maxV - minV < 1e-3) {
-        minV -= 1;
-        maxV += 1;
-      }
+      const { minV, maxV } = sharedBounds || this._computeBounds(finite, s.min ?? null, s.minSpan ?? 0);
       const yAt = (v) => padT + (1 - (v - minV) / (maxV - minV)) * plotH;
 
       ctx.strokeStyle = s.color;
       ctx.lineWidth = s.width || 1.6;
-      if (s.dashed) ctx.setLineDash([4, 3]);
+      if (s.dashed) ctx.setLineDash(s.dash || [4, 3]);
       else ctx.setLineDash([]);
 
       ctx.beginPath();
@@ -141,13 +181,33 @@ export class SyncCharts {
   render() {
     if (!this.frames.length) return;
 
-    const estAlt = this.frames.map((f) => (f.est ? f.est.alt_map_m : null));
+    const hasSmooth = this.frames.some((f) => f.est_smooth != null);
+    const rawAlt = this.frames.map((f) => (f.est ? f.est.alt_map_m : null));
+    const smAlt = this.frames.map((f) => (f.est_smooth ? f.est_smooth.alt_map_m : null));
     const gtAlt = this.frames.map((f) => (f.gt ? f.gt.alt_map_m : null));
-    const altSeries = [{ values: estAlt, color: "#80f2be", unit: "m", decimals: 0 }];
-    if (gtAlt.some((v) => v != null)) {
-      altSeries.push({ values: gtAlt, color: "#ffc477", dashed: true, labelSide: false });
+    const hasGtAlt = gtAlt.some((v) => v != null);
+
+    const altSeries = [];
+    if (this.useSmooth && hasSmooth) {
+      altSeries.push({
+        values: rawAlt,
+        color: "rgba(128, 242, 190, 0.34)",
+        width: 1.1,
+        dashed: true,
+        dash: [3, 3],
+        labelSide: false,
+      });
+      if (hasGtAlt) {
+        altSeries.push({ values: gtAlt, color: "#ffc477", width: 1.4, dashed: true, labelSide: false });
+      }
+      altSeries.push({ values: smAlt, color: "#80f2be", width: 2.0, unit: "m", decimals: 0 });
+    } else {
+      if (hasGtAlt) {
+        altSeries.push({ values: gtAlt, color: "#ffc477", width: 1.4, dashed: true, labelSide: false });
+      }
+      altSeries.push({ values: rawAlt, color: "#80f2be", width: 1.8, unit: "m", decimals: 0 });
     }
-    this._drawSeries(this.altCanvas, altSeries);
+    this._drawSeries(this.altCanvas, altSeries, { sharedScale: true, minSpan: 12 });
 
     const inliers = this.frames.map((f) => f.num_inliers ?? 0);
     const reproj = this.frames.map((f) => f.reproj_error_px);
@@ -157,10 +217,23 @@ export class SyncCharts {
     ]);
 
     if (this.hasGt) {
-      const hErr = this.frames.map((f) => (f.error ? f.error.horiz_m : null));
-      this._drawSeries(this.errorCanvas, [
-        { values: hErr, color: "#ff947f", min: 0, unit: "m", decimals: 1 },
-      ]);
+      const rawErr = this.frames.map((f) => (f.error ? f.error.horiz_m : null));
+      const smErr = this.frames.map((f) => (f.error_smooth ? f.error_smooth.horiz_m : null));
+      const hasSmErr = smErr.some((v) => v != null);
+      if (this.useSmooth && hasSmErr) {
+        this._drawSeries(
+          this.errorCanvas,
+          [
+            { values: rawErr, color: "rgba(255, 148, 127, 0.34)", width: 1.1, dashed: true, dash: [3, 3], labelSide: false },
+            { values: smErr, color: "#ff947f", width: 1.8, unit: "m", decimals: 1 },
+          ],
+          { sharedScale: true, min: 0 }
+        );
+      } else {
+        this._drawSeries(this.errorCanvas, [
+          { values: rawErr, color: "#ff947f", min: 0, unit: "m", decimals: 1 },
+        ]);
+      }
     }
   }
 }

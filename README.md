@@ -4,6 +4,34 @@ Video-only 6-DoF UAV localization anchored in public 3D geodata (no GPS or IMU r
 
 ---
 
+## Demo Overview
+
+### Synchronized 3D Studio, Telemetry HUD & Ground-Truth Charts (`Orbit` + RTS Smoothing)
+![Groundframe Web Studio — Synchronized Drone Video, CesiumJS 3D Orbit, GT Overlay & Charts](docs/media/studio-overview-orbit.png)
+
+### Pixel-Level Alignment Verification (`Wipe Compare` vs Google Photorealistic 3D Tiles)
+![Groundframe Wipe Compare — Real Drone Video Aligned with Google 3D Tiles & RoMaV2 Matches](docs/media/studio-wipe-compare.png)
+
+### Cold-Start Launcher (`+ New Flight` — Offline Mini-Switzerland VPR + 10-City Coverage Map)
+![Groundframe New Flight Modal — Offline VPR & Switzerland Coverage Map](docs/media/studio-offline-vpr-modal.png)
+
+---
+
+## 6-DoF Localization Results (End-to-End Benchmarks)
+
+Evaluated on an NVIDIA GeForce RTX 3090 (24 GB VRAM) using `OrthoTrack` + `RoMaV2`, single-file `0.2 m/px` DOP + DSM RAM preload (`scripts/prepare_map.py`), and RTS Kalman trajectory smoothing (`scripts/export_trajectory.py`).
+
+| Flight / Benchmark | Frames | Coverage | Median Horiz Err | P95 Horiz | Median Vert | Median Rot | Effective FPS | Notes |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **`MovingDrone / airport10`** (`airport10_400f`, RTS smoothed) | 400 | **100.0%** (`4 KF / 396 trk`) | **0.30 m** (0.32 m raw) | **0.40 m** (0.50 m raw) | **0.23 m** | **0.04°** | **14.44 FPS** (`61.9 ms` med) | Continuous aerial flight with metric 6-DoF GT |
+| **`CrossLoc / EPFL Urbanscape`** (`Lausanne, CH`, real oblique 60°) | 100 | **99.0%** (`100 KF`) | **0.52 m** (raw) | **2.24 m** | **0.37 m** (`0.66 m` 3D) | **0.85°** | `1.99 FPS` (keyframe-only) | Real Swiss drone flight converted via `scripts/prepare_crossloc_urbanscape.py` against live `swisstopo` 3D tiles\* |
+| **`Lucerne Kapellbrücke`** (`lucerne_kapellbruecke_22s`, real UAV) | 682 | **100.0%** (`37 KF / 645 trk`) | Visual alignment (`Wipe`) | — | — | — | **3.94 FPS** (`103.9 ms` med) | Wild YouTube drone footage (no GPS/IMU); cold-start localized via offline VPR |
+| **`MovingDrone / airport10`** (`smoke_airport10`, 30f smoke) | 30 | **100.0%** (`1 KF / 29 trk`) | **0.35 m** | **0.45 m** | **0.10 m** | **0.04°** | `3.89 FPS` | Quick reproducible smoke test (`make smoke-test`) |
+
+> \* **Note on RTS Kalman smoothing:** `scripts/export_trajectory.py` computes both raw (`est`) and RTS-smoothed (`est_smooth`) trajectories with a live **Smooth** toggle in the UI and GeoJSON/KML exporters. Smoothing improves continuous flights (e.g., `airport10_400f`: `0.32 m → 0.30 m`, `p95: 0.50 m → 0.40 m`), whereas discrete viewpoint sequences with large inter-frame jumps (like `epfl_urbanscape_oblique60_100f`, `tracked = 0`) should be inspected with **Smooth** unchecked (`0.52 m` raw error).
+
+---
+
 ## Architecture: Two-Stage Offline Localization
 
 ```text
@@ -24,8 +52,8 @@ Raw Drone Video (.mp4 / .mov)
    ▼  Stage 3  — Dense 6-DoF Tracking (OrthoTrack + RoMaV2 + Lucas-Kanade)
    │             Keyframe dense matching → 3D DSM lift → FoV auto-calibration → PnP → inter-frame optical flow
    │
-   ▼  Stage 4  — WGS84 Export & 3D Replay (FastAPI + CesiumJS)
-                 trajectory.json / CSV / GeoJSON / 3D KML + Orbit / Chase / Drone-Eye / Wipe Compare
+   ▼  Stage 4  — RTS Smoothing, WGS84 Export & 3D Replay (FastAPI + CesiumJS)
+                 RTS Kalman smoother → trajectory.json / CSV / GeoJSON / 3D KML + Orbit / Chase / Drone-Eye / Wipe
 ```
 
 ### Cold-Start Modes in `+ New Flight`
@@ -50,7 +78,7 @@ To replace cloud VLM reliance without guessing blindly, we built a shared **Mini
 
 ### Overall Head-to-Head Results (Single-Frame Evaluation, 40 Queries)
 
-Full raw numbers are stored in [`outputs/vpr_benchmark/benchmark_results.json`](outputs/vpr_benchmark/benchmark_results.json) (reproducible via `make benchmark-vpr`).
+Full raw numbers are stored in `outputs/vpr_benchmark/benchmark_results.json` (reproducible via `make benchmark-vpr`).
 
 | Metric | **MegaLoc** (Winner) | Sample4Geo (U1652) |
 | :--- | :---: | :---: |
@@ -159,7 +187,7 @@ make serve
 
 ```bash
 make check-gpu                                          # Verify PyTorch CUDA & RoMaV2
-make smoke-test                                         # 30-frame benchmark on MovingDrone/airport10 (~0.44m median error)
+make smoke-test                                         # 30-frame benchmark on MovingDrone/airport10 (~0.35m median error)
 make download-vpr-weights                               # Pre-download MegaLoc + Sample4Geo U1652 weights
 make build-index                                        # Build Mini-Switzerland offline VPR index (MegaLoc + Sample4Geo)
 make benchmark-vpr                                      # Re-run MegaLoc vs Sample4Geo + PnP ablation benchmark
@@ -173,8 +201,9 @@ make track VIDEO=data/videos/zurich/zurich_limmat_25s.mp4 MAP_DIR=data/maps/zuri
 
 ```text
 app/                 FastAPI backend (offline VPR + PnP verifier, OpenRouter VLM fallback, SSE jobs, DJI .SRT parser, GeoJSON/KML export)
-app/static/          Zero-build Web Studio UI (CesiumJS, 10-city Swiss coverage SVG, Leaflet pin map, Canvas charts, Wipe Compare)
-scripts/             VPR weight downloader, Mini-Switzerland VPR indexer, MegaLoc vs Sample4Geo benchmark, swisstopo fetcher, map cache builder, WGS84 exporter
+app/static/          Zero-build Web Studio UI (CesiumJS, 10-city Swiss coverage SVG, Leaflet pin map, Canvas charts, Smooth toggle, Wipe Compare)
+scripts/             VPR indexer & benchmark, swisstopo fetcher, map cache builder, CrossLoc Urbanscape converter, RTS-smoothed WGS84 exporter
+docs/                Architecture notes and Web Studio demo screenshots (docs/media/)
 third_party/         Pinned OrthoTrack + RoMaV2 (gitignored, installed by `make setup`)
 data/                Cached maps, 2 m/px Swiss VPR tiles, offline VPR index, demo videos, uploads (gitignored)
 outputs/             Saved flight trajectories, VPR benchmark results, keyframe match visuals, metrics (gitignored)

@@ -102,6 +102,8 @@ def apply_dji_srt_to_trajectory(trajectory_path: Path, srt_path: Path) -> Dict[s
 
     horiz_errors: List[float] = []
     vert_errors: List[float] = []
+    sm_horiz_errors: List[float] = []
+    sm_vert_errors: List[float] = []
 
     for frame in traj.get("frames", []):
         fid = int(frame["frame_id"])
@@ -137,6 +139,18 @@ def apply_dji_srt_to_trajectory(trajectory_path: Path, srt_path: Path) -> Dict[s
                 err_obj["pos_3d_m"] = round(math.hypot(h_err, v_err), 3)
             frame["error"] = err_obj
 
+        est_sm = frame.get("est_smooth")
+        if est_sm is not None:
+            sh_err = haversine_m(float(est_sm["lat"]), float(est_sm["lon"]), rec["lat"], rec["lon"])
+            sm_horiz_errors.append(sh_err)
+            serr_obj: Dict[str, Any] = {"horiz_m": round(sh_err, 3)}
+            if gt_alt_map is not None and rec["alt_is_abs"] and est_sm.get("alt_map_m") is not None:
+                sv_err = abs(float(est_sm["alt_map_m"]) - gt_alt_map)
+                sm_vert_errors.append(sv_err)
+                serr_obj["vert_m"] = round(sv_err, 3)
+                serr_obj["pos_3d_m"] = round(math.hypot(sh_err, sv_err), 3)
+            frame["error_smooth"] = serr_obj
+
     if horiz_errors:
         summary = traj.setdefault("summary", {})
         metrics: Dict[str, Any] = {
@@ -148,6 +162,18 @@ def apply_dji_srt_to_trajectory(trajectory_path: Path, srt_path: Path) -> Dict[s
         if vert_errors:
             metrics["median_vert_m"] = round(float(np.median(vert_errors)), 2)
         summary["metrics"] = metrics
+
+    if sm_horiz_errors:
+        summary = traj.setdefault("summary", {})
+        metrics_sm: Dict[str, Any] = {
+            "median_horiz_m": round(float(np.median(sm_horiz_errors)), 2),
+            "p95_horiz_m": round(float(np.percentile(sm_horiz_errors, 95)), 2),
+            "gt_source": "dji_srt",
+            "gt_matched_frames": len(sm_horiz_errors),
+        }
+        if sm_vert_errors:
+            metrics_sm["median_vert_m"] = round(float(np.median(sm_vert_errors)), 2)
+        summary["metrics_smooth"] = metrics_sm
 
     trajectory_path.write_text(json.dumps(traj, indent=2), encoding="utf-8")
     return traj

@@ -169,8 +169,9 @@ export class LaunchController {
     const calibLabel = this.calibMode === "auto" ? "Auto FoV" : this.calibMode === "file" ? "intrinsics.json" : `FoV ${document.getElementById("input-manual-fov").value}°`;
     const matcher = document.getElementById("select-fine-matcher").value;
     const skip = document.getElementById("input-skip-frames").value || "1";
+    const accum = document.getElementById("input-accumulate-points")?.checked ? "accum=on" : "accum=off";
     const vis = document.getElementById("input-save-kf-vis").checked ? "vis=on" : "vis=off";
-    el.textContent = `${calibLabel} · ${matcher} · skip=${skip} · ${vis}`;
+    el.textContent = `${calibLabel} · ${matcher} · skip=${skip} · ${accum} · ${vis}`;
   }
 
   _bindForm() {
@@ -269,7 +270,7 @@ export class LaunchController {
       this._updateAdvancedSummary();
     });
 
-    for (const id of ["select-fine-matcher", "input-skip-frames", "input-save-kf-vis", "input-manual-fov"]) {
+    for (const id of ["select-fine-matcher", "input-skip-frames", "input-accumulate-points", "input-save-kf-vis", "input-manual-fov"]) {
       document.getElementById(id)?.addEventListener("change", () => this._updateAdvancedSummary());
     }
     this._updateAdvancedSummary();
@@ -384,6 +385,7 @@ export class LaunchController {
       skip_frames: Number(document.getElementById("input-skip-frames").value) || 1,
       start_frame: document.getElementById("input-start-frame").value ? Number(document.getElementById("input-start-frame").value) : null,
       end_frame: document.getElementById("input-end-frame").value ? Number(document.getElementById("input-end-frame").value) : null,
+      accumulate_points: document.getElementById("input-accumulate-points")?.checked ?? true,
       save_keyframe_vis: document.getElementById("input-save-kf-vis").checked,
       gt_path: this.uploadedGtPath || null,
       openrouter_api_key: session.openrouter_api_key || null,
