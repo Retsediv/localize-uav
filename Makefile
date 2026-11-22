@@ -1,4 +1,4 @@
-.PHONY: help setup clone-third-party venv download-weights download-vpr-weights build-index benchmark-vpr check-gpu smoke-data smoke-test fetch-map track export serve clean
+.PHONY: help setup clone-third-party venv download-weights download-vpr-weights build-index benchmark-vpr check-gpu smoke-data smoke-test fetch-map track export serve pack-data clean
 
 UV          ?= uv
 PYTHON      := .venv/bin/python
@@ -126,6 +126,12 @@ export: ## Convert OrthoTrack results.json -> WGS84 trajectory.json (OUT=..., MA
 
 serve: ## Launch Groundframe Web Studio (FastAPI + CesiumJS) on http://localhost:8000
 	$(PYTHON) -m uvicorn app.server:app --host $${HOST:-0.0.0.0} --port $${PORT:-8000}
+
+pack-data: ## Zip data/, outputs/ and .cache/ weights into dist/groundframe-data.zip for reviewers
+	@mkdir -p dist && rm -f dist/groundframe-data.zip
+	zip -r -1 -q dist/groundframe-data.zip data outputs .cache \
+		-x 'data/uploads/*' 'data/zurich_mav/AGZ_subset.zip' '*/__pycache__/*' '*.DS_Store'
+	@ls -lh dist/groundframe-data.zip
 
 clean: ## Remove generated outputs (keeps downloaded maps and .venv)
 	rm -rf outputs/

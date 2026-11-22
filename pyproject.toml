@@ -28,7 +28,8 @@ dependencies = [
     "gdown>=5.2.0",
     "fused-local-corr; sys_platform == 'linux'",
     # Video decoding
-    "decord>=0.6.0",
+    # shortcut: decord has no macOS wheels; OrthoTrack falls back to OpenCV when it is missing
+    "decord>=0.6.0; sys_platform == 'linux'",
     # Mesh / rendering
     "trimesh>=4.0",
     "PyOpenGL>=3.1",

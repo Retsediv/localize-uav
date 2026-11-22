@@ -164,6 +164,8 @@ The localization engine is **geographically agnostic** — it only requires two 
 
 ## Quick Start
 
+> Reviewing this project? Follow [REVIEWER_SETUP.md](REVIEWER_SETUP.md): it ships all data and weights as one zip and works on a Mac without a GPU.
+
 **Requirements:** Linux with NVIDIA CUDA GPU (`≥ 16 GB VRAM` for `precise` matcher, `≥ 8 GB` for `base`/`turbo`), `uv`, `git`, `ffmpeg`.
 
 ```bash
