@@ -76,6 +76,7 @@ const els = {
   telPitchRoll: document.getElementById("tel-pitchroll"),
   telInliers: document.getElementById("tel-inliers"),
   telReproj: document.getElementById("tel-reproj"),
+  compassNeedle: document.getElementById("compass-needle"),
 
   scCoverage: document.getElementById("sc-coverage"),
   scKeyframes: document.getElementById("sc-keyframes"),
@@ -239,6 +240,8 @@ async function loadFlight(flightId) {
     state.keyframesByFrame.get(key).push(kf);
   }
   renderKeyframeEvidence(0);
+  // Auto-open Synchronized Charts when a run has no saved keyframe PNGs (fast default mode)
+  switchEvidenceTab((data.keyframes || []).length > 0 ? "matches" : "charts");
 
   // Timeline
   els.timelineSlider.max = Math.max(0, state.frames.length - 1);
@@ -338,7 +341,7 @@ function applyFrame(idx, updateCharts = true) {
 
   // Status pill
   const st = frame.status || "LOST";
-  els.hudStatusPill.textContent = st;
+  els.hudStatusPill.innerHTML = `<span class="pulse-dot"></span>${st}`;
   els.hudStatusPill.className = "status-pill " + (
     st === "LOCKED" ? "status-locked" :
     st === "TRACKING" ? "status-tracking" :
@@ -352,6 +355,9 @@ function applyFrame(idx, updateCharts = true) {
     els.telAlt.textContent = `${est.alt_map_m?.toFixed(1) ?? "—"} m / ${est.alt_wgs84_m?.toFixed(1) ?? "—"} m`;
     els.telHeading.textContent = `${est.heading_deg != null ? est.heading_deg.toFixed(1) + "°" : "—"} / ${est.course_deg != null ? est.course_deg.toFixed(1) + "°" : "—"}`;
     els.telPitchRoll.textContent = `${est.pitch_deg != null ? est.pitch_deg.toFixed(1) + "°" : "—"} / ${est.roll_deg != null ? est.roll_deg.toFixed(1) + "°" : "—"}`;
+    if (els.compassNeedle && est.heading_deg != null) {
+      els.compassNeedle.setAttribute("transform", `rotate(${est.heading_deg.toFixed(1)} 16 16)`);
+    }
   } else {
     els.telLatLon.textContent = "—";
     els.telAlt.textContent = "—";
@@ -621,6 +627,7 @@ function bindUIEvents() {
     const btn = e.target.closest("button[data-tab]");
     if (btn) switchEvidenceTab(btn.dataset.tab);
   });
+  document.getElementById("btn-jump-charts")?.addEventListener("click", () => switchEvidenceTab("charts"));
   els.kfImage.addEventListener("click", () => {
     if (!els.kfImage.src) return;
     document.getElementById("lightbox-img").src = els.kfImage.src;

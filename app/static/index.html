@@ -19,7 +19,10 @@
         <span class="brand-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>
         </span>
-        <span class="brand-name">Groundframe</span>
+        <div class="brand-copy">
+          <span class="brand-name">Groundframe</span>
+          <span class="brand-sub">6-DoF UAV Visual Localization</span>
+        </div>
         <span class="brand-tag" id="gpu-badge">RTX GPU</span>
       </div>
 
@@ -67,12 +70,16 @@
         <div class="panel-head">
           <div class="panel-title-group">
             <span class="panel-label">REAL DRONE VIDEO</span>
-            <span class="status-pill status-lost" id="hud-status-pill">NO DATA</span>
+            <span class="status-pill status-lost" id="hud-status-pill"><span class="pulse-dot"></span>NO DATA</span>
           </div>
-          <div class="mono-meta" id="video-frame-meta">00:00.00 · Frame 0</div>
+          <div class="mono-meta tabular" id="video-frame-meta">00:00.00 · Frame 0</div>
         </div>
         <div class="video-stage" id="video-stage">
           <video id="drone-video" playsinline muted preload="auto"></video>
+          <div class="hud-corners" aria-hidden="true">
+            <span class="corner tl"></span><span class="corner tr"></span>
+            <span class="corner bl"></span><span class="corner br"></span>
+          </div>
           <div class="video-empty" id="video-empty" hidden>No source video attached to this flight.</div>
           <div class="rejection-banner" id="rejection-banner" hidden>
             <div class="rejection-title">LOCALIZATION REJECTED (0% COVERAGE)</div>
@@ -85,16 +92,16 @@
       <div class="panel cesium-panel" id="cesium-panel">
         <div class="panel-head">
           <div class="panel-title-group">
-            <span class="panel-label">CESIUM 3D WORLD</span>
+            <span class="panel-label">3D WORLD</span>
             <span class="tiles-badge" id="tiles-badge">Initializing...</span>
           </div>
 
           <div class="cesium-controls">
             <div class="segmented" id="camera-mode-group" role="group" aria-label="3D Camera Mode">
-              <button data-mode="orbit" class="active">Orbit</button>
-              <button data-mode="chase">Chase</button>
-              <button data-mode="drone_eye">Drone-Eye</button>
-              <button data-mode="wipe">Wipe</button>
+              <button data-mode="orbit" class="active" title="Free 3D orbit (1)">Orbit</button>
+              <button data-mode="chase" title="Chase camera (2)">Chase</button>
+              <button data-mode="drone_eye" title="Exact 6-DoF drone camera (3)">Drone-Eye</button>
+              <button data-mode="wipe" title="Split curtain compare (4)">Wipe</button>
             </div>
             <label class="checkbox-pill" id="gt-toggle-wrap" title="Toggle withheld Ground Truth trajectory">
               <input type="checkbox" id="toggle-gt" checked>
@@ -109,19 +116,18 @@
           <label class="align-field">
             <span>Alt Δ</span>
             <input type="range" id="align-alt" min="-25" max="25" step="0.5" value="0">
-            <span class="mono" id="align-alt-val">0.0 m</span>
+            <span class="mono tabular" id="align-alt-val">0.0 m</span>
           </label>
           <label class="align-field">
             <span>FoV Δ</span>
             <input type="range" id="align-fov" min="-12" max="12" step="0.5" value="0">
-            <span class="mono" id="align-fov-val">0.0°</span>
+            <span class="mono tabular" id="align-fov-val">0.0°</span>
           </label>
           <button id="btn-align-reset" class="btn-chip">Reset</button>
         </div>
 
         <div class="cesium-stage" id="cesium-stage">
           <div id="cesium-container"></div>
-          <!-- Wipe Compare overlay layer (reparents video clone/layer visually over Cesium) -->
           <div class="wipe-video-clip" id="wipe-video-clip" hidden>
             <canvas id="wipe-video-canvas"></canvas>
             <span class="wipe-tag wipe-tag-left">REAL DRONE VIDEO</span>
@@ -145,7 +151,7 @@
         </button>
         <button id="btn-prev-frame" class="btn-chip mono" title="Previous frame (←)">-1</button>
         <button id="btn-next-frame" class="btn-chip mono" title="Next frame (→)">+1</button>
-        <span class="mono timeline-clock" id="timeline-clock">00:00.00 / 00:00.00</span>
+        <span class="mono tabular timeline-clock" id="timeline-clock">00:00.00 / 00:00.00</span>
       </div>
 
       <div class="timeline-track-wrap" id="timeline-track-wrap">
@@ -171,57 +177,67 @@
       <!-- TELEMETRY & SCORECARD -->
       <div class="panel telemetry-panel">
         <div class="panel-head">
-          <span class="panel-label">TELEMETRY HUD & SCORECARD</span>
+          <span class="panel-label">TELEMETRY HUD &amp; SCORECARD</span>
           <button id="btn-copy-coords" class="btn-chip" title="Copy current Lat, Lon">Copy Lat/Lon</button>
         </div>
 
         <div class="telemetry-grid">
           <div class="metric-cell">
             <span class="metric-k">WGS84 LAT / LON</span>
-            <span class="metric-v mono" id="tel-latlon">—</span>
+            <span class="metric-v mono tabular" id="tel-latlon">—</span>
           </div>
           <div class="metric-cell">
             <span class="metric-k">ALTITUDE (MAP / WGS84)</span>
-            <span class="metric-v mono" id="tel-alt">—</span>
+            <span class="metric-v mono tabular" id="tel-alt">—</span>
           </div>
-          <div class="metric-cell">
-            <span class="metric-k">HEADING / COURSE</span>
-            <span class="metric-v mono" id="tel-heading">—</span>
+          <div class="metric-cell metric-compass">
+            <div class="metric-text">
+              <span class="metric-k">HEADING / COURSE</span>
+              <span class="metric-v mono tabular" id="tel-heading">—</span>
+            </div>
+            <svg class="compass-dial" viewBox="0 0 32 32" aria-hidden="true">
+              <circle cx="16" cy="16" r="13" stroke="var(--line-bright)" stroke-width="1.2"/>
+              <text x="16" y="7.5" text-anchor="middle" fill="var(--muted)" font-size="5" font-family="IBM Plex Mono">N</text>
+              <g id="compass-needle" transform="rotate(0 16 16)">
+                <polygon points="16,6 18.6,16 16,14 13.4,16" fill="var(--mint)" stroke="none"/>
+                <polygon points="16,26 18.2,16 16,18 13.8,16" fill="var(--line-bright)" stroke="none"/>
+              </g>
+            </svg>
           </div>
           <div class="metric-cell">
             <span class="metric-k">PITCH / ROLL</span>
-            <span class="metric-v mono" id="tel-pitchroll">—</span>
+            <span class="metric-v mono tabular" id="tel-pitchroll">—</span>
           </div>
           <div class="metric-cell">
             <span class="metric-k">PNP INLIERS / TRACKED</span>
-            <span class="metric-v mono" id="tel-inliers">—</span>
+            <span class="metric-v mono tabular" id="tel-inliers">—</span>
           </div>
           <div class="metric-cell">
             <span class="metric-k">REPROJ / LATENCY</span>
-            <span class="metric-v mono" id="tel-reproj">—</span>
+            <span class="metric-v mono tabular" id="tel-reproj">—</span>
           </div>
         </div>
 
         <div class="scorecard-strip" id="scorecard-strip">
           <div class="score-item">
             <span class="metric-k">COVERAGE</span>
-            <span class="score-v mono" id="sc-coverage">—</span>
+            <span class="score-v mono tabular" id="sc-coverage">—</span>
           </div>
           <div class="score-item">
             <span class="metric-k">KEYFRAMES</span>
-            <span class="score-v mono" id="sc-keyframes">—</span>
+            <span class="score-v mono tabular" id="sc-keyframes">—</span>
           </div>
           <div class="score-item">
             <span class="metric-k">MED HORIZ ERR</span>
-            <span class="score-v mono" id="sc-horiz">—</span>
+            <span class="score-v mono tabular" id="sc-horiz">—</span>
           </div>
           <div class="score-item">
             <span class="metric-k">P95 HORIZ</span>
-            <span class="score-v mono" id="sc-p95">—</span>
+            <span class="score-v mono tabular" id="sc-p95">—</span>
           </div>
           <div class="score-item">
             <span class="metric-k">MED VERT / ROT</span>
-            <span class="score-v mono" id="sc-vertrot">—</span>
+            <span class="score-v mono tabular" id="sc-vertrot">—</span>
           </div>
         </div>
       </div>
@@ -239,7 +255,10 @@
         <div class="evidence-body" id="tab-matches">
           <div class="kf-viewer" id="kf-viewer">
             <img id="kf-image" alt="RoMaV2 keyframe matches visualization" hidden>
-            <div class="kf-empty" id="kf-empty">No RoMaV2 keyframe match visualizations available for this flight.</div>
+            <div class="kf-empty" id="kf-empty">
+              <span>No keyframe debug PNGs saved for this run.</span>
+              <button type="button" class="btn-chip" id="btn-jump-charts">View Synchronized Charts</button>
+            </div>
           </div>
         </div>
 
@@ -249,7 +268,7 @@
             <canvas id="chart-alt"></canvas>
           </div>
           <div class="chart-row">
-            <span class="chart-title">TRACKED INLIERS & REPROJ (px)</span>
+            <span class="chart-title">TRACKED INLIERS &amp; REPROJ (px)</span>
             <canvas id="chart-inliers"></canvas>
           </div>
           <div class="chart-row" id="chart-error-row" hidden>
@@ -267,7 +286,7 @@
       <div class="modal-head">
         <div>
           <h2 id="new-flight-title">New Localization Flight</h2>
-          <p class="modal-sub">Drop a drone video or select from library, configure 3D map prior &amp; OrthoTrack parameters.</p>
+          <p class="modal-sub">Upload a drone clip or choose a local flight — Groundframe automatically detects the region and anchors every frame in 3D.</p>
         </div>
         <button class="icon-btn modal-close" data-close="modal-new-flight" aria-label="Close">
           <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -275,53 +294,125 @@
       </div>
 
       <form id="form-new-flight" class="modal-body">
-        <!-- 1. VIDEO -->
-        <fieldset class="form-section">
-          <legend>1. Drone Video</legend>
-          <div class="form-row-2">
+        <!-- HERO ROW: VIDEO UPLOAD + SWITZERLAND COVERAGE MINI-MAP -->
+        <div class="launch-hero-grid">
+          <!-- LEFT: VIDEO SELECTION -->
+          <div class="launch-card">
+            <div class="card-kicker">1. DRONE VIDEO</div>
             <div class="dropzone" id="video-dropzone">
               <input type="file" id="input-video-file" accept=".mp4,.mov,.mkv,.avi,.webm" hidden>
+              <div class="dropzone-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+              </div>
               <div class="dropzone-text" id="video-dropzone-text">
-                <strong>Drag &amp; drop .mp4 / .mov</strong> or click to upload
-                <span class="muted-sm">Non-H.264 / .mov auto-transcoded for frame-exact browser sync</span>
+                <strong>Drop .mp4 / .mov here</strong> or click to browse
+                <span class="muted-sm">Auto-transcodes non-H.264 / .mov for smooth sync</span>
               </div>
             </div>
+
             <div class="field-stack">
               <label class="field">
-                <span>Or choose local video (data/videos/)</span>
+                <span>Or pick from local library (<code>data/videos/</code>)</span>
                 <select id="select-local-video" class="select-control"></select>
               </label>
               <label class="field">
                 <span>Flight Name</span>
-                <input type="text" id="input-flight-name" class="input-control" placeholder="e.g. Zurich Limmat Flight">
+                <input type="text" id="input-flight-name" class="input-control" placeholder="e.g. Lucerne Chapel Bridge">
               </label>
             </div>
           </div>
-        </fieldset>
 
-        <!-- 2. LOCATION & 3D MAP -->
+          <!-- RIGHT: SWITZERLAND 3D COVERAGE CARD -->
+          <div class="launch-card ch-coverage-card">
+            <div class="ch-card-head">
+              <div class="ch-badge">
+                <span class="swiss-cross" aria-hidden="true"></span>
+                <span>SWITZERLAND ONLY</span>
+              </div>
+              <span class="ch-provider mono">swisstopo 3D</span>
+            </div>
+
+            <div class="ch-map-frame">
+              <svg class="ch-svg" viewBox="0 0 340 210" role="img" aria-label="Switzerland supported 3D map coverage">
+                <defs>
+                  <linearGradient id="chFill" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#80f2be" stop-opacity="0.24"/>
+                    <stop offset="100%" stop-color="#4fd1a5" stop-opacity="0.08"/>
+                  </linearGradient>
+                  <radialGradient id="chGlow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#80f2be" stop-opacity="0.26"/>
+                    <stop offset="100%" stop-color="#80f2be" stop-opacity="0"/>
+                  </radialGradient>
+                </defs>
+                <!-- Subtle tactical grid -->
+                <g stroke="#223036" stroke-width="0.6" stroke-dasharray="2 3">
+                  <line x1="0" y1="52" x2="340" y2="52"/>
+                  <line x1="0" y1="105" x2="340" y2="105"/>
+                  <line x1="0" y1="158" x2="340" y2="158"/>
+                  <line x1="85" y1="0" x2="85" y2="210"/>
+                  <line x1="170" y1="0" x2="170" y2="210"/>
+                  <line x1="255" y1="0" x2="255" y2="210"/>
+                </g>
+                <ellipse cx="170" cy="105" rx="140" ry="82" fill="url(#chGlow)"/>
+                <!-- Accurate Switzerland border -->
+                <path class="ch-outline" d="M 14.4,166.2 L 27.5,152.5 L 22.7,136.0 L 40.5,117.8 L 48.8,98.6 L 66.6,81.3 L 81.1,63.9 L 87.2,44.7 L 112.0,46.6 L 125.7,32.9 L 149.1,35.6 L 171.0,31.0 L 192.3,14.6 L 213.6,26.5 L 238.3,27.4 L 262.4,41.1 L 267.9,50.2 L 258.9,64.8 L 263.8,81.3 L 283.7,83.1 L 303.6,94.0 L 324.9,99.5 L 322.8,121.4 L 313.9,128.7 L 295.4,123.3 L 300.2,143.3 L 301.5,157.0 L 290.5,156.1 L 278.2,143.3 L 261.0,147.9 L 247.3,134.2 L 238.3,155.2 L 227.4,174.4 L 224.6,194.5 L 215.7,192.7 L 212.2,179.0 L 201.9,168.0 L 184.1,156.1 L 180.6,136.0 L 165.5,158.0 L 151.8,177.1 L 131.2,183.5 L 109.2,189.9 L 88.6,189.9 L 78.3,172.6 L 71.4,143.3 L 44.6,139.7 L 28.2,159.8 Z" fill="url(#chFill)" stroke="#80f2be" stroke-width="1.6"/>
+
+                <!-- Secondary Swiss cities -->
+                <g class="ch-city-muted">
+                  <circle cx="126.3" cy="35.6" r="2.2" fill="#8ea0a7"/><text x="132" y="38.5">Basel</text>
+                  <circle cx="27.0" cy="159.4" r="2.2" fill="#8ea0a7"/><text x="34" y="163">Geneva</text>
+                  <circle cx="219.9" cy="177.7" r="2.2" fill="#8ea0a7"/><text x="226" y="181">Lugano</text>
+                </g>
+
+                <!-- Clickable primary hotspots (cached / quick-pin) -->
+                <g class="ch-hotspot" data-ch-city="47.3700,8.5425" title="Click to pin Zurich">
+                  <circle class="ch-ping" cx="191.8" cy="53.0" r="8"/>
+                  <circle cx="191.8" cy="53.0" r="3.6" fill="#80f2be" stroke="#0d1215" stroke-width="1.2"/>
+                  <text x="200" y="56.5">Zurich</text>
+                </g>
+                <g class="ch-hotspot" data-ch-city="47.0516,8.3075" title="Click to pin Lucerne">
+                  <circle class="ch-ping" cx="175.7" cy="82.0" r="8"/>
+                  <circle cx="175.7" cy="82.0" r="3.6" fill="#80f2be" stroke="#0d1215" stroke-width="1.2"/>
+                  <text x="184" y="85.5">Lucerne</text>
+                </g>
+                <g class="ch-hotspot" data-ch-city="46.9480,7.4474" title="Click to pin Bern">
+                  <circle cx="116.6" cy="91.5" r="3.2" fill="#ffc477" stroke="#0d1215" stroke-width="1.2"/>
+                  <text x="123" y="95" fill="#ffc477">Bern</text>
+                </g>
+              </svg>
+              <span class="ch-coord-tag mono">45.8°–47.8°N · 5.9°–10.5°E</span>
+            </div>
+
+            <p class="ch-caption" id="ch-coverage-caption">
+              Live 3D map backend uses <strong>swisstopo</strong> (<code>SWISSIMAGE</code> 10cm + <code>swissSURFACE3D</code>). Upload drone footage filmed in <strong>Switzerland</strong> — or select a pre-packaged scene under <em>Saved Local Map</em>.
+            </p>
+          </div>
+        </div>
+
+        <!-- 2. LOCATION MODE -->
         <fieldset class="form-section">
-          <legend>2. Location &amp; 3D Map Prior</legend>
+          <legend>2. Region Discovery &amp; 3D Map Prior</legend>
           <div class="segmented segmented-full" id="loc-mode-group">
-            <button type="button" data-loc="auto" class="active">1. Auto (Video-only via VLM)</button>
-            <button type="button" data-loc="pin">2. Pin on Map (swisstopo)</button>
+            <button type="button" data-loc="auto" class="active">1. Auto (Video-only VLM)</button>
+            <button type="button" data-loc="pin">2. Pin on Map (CH)</button>
             <button type="button" data-loc="local_map">3. Saved Local Map</button>
           </div>
 
           <div id="loc-panel-auto" class="loc-panel">
             <p class="hint-text" id="vlm-mode-hint">
-              OpenRouter Vision inspects initial video frames to infer approximate (lat, lon) → matches cached local maps or auto-fetches swisstopo 10cm DOP + 50cm DSM tiles.
+              OpenRouter Vision infers approximate (lat, lon) from initial frames → reuses cached maps or auto-fetches swisstopo 3D tiles.
             </p>
             <label class="field field-inline">
               <span>Search radius</span>
               <input type="range" id="input-auto-radius" min="400" max="1500" step="100" value="600">
-              <span class="mono" id="auto-radius-val">600 m</span>
+              <span class="mono tabular" id="auto-radius-val">600 m</span>
             </label>
           </div>
 
           <div id="loc-panel-pin" class="loc-panel" hidden>
             <div class="pin-toolbar">
-              <span class="mono" id="pin-coords-readout">47.3700, 8.5425</span>
+              <span class="mono tabular" id="pin-coords-readout">47.3700, 8.5425</span>
+              <span class="pin-ch-status mono" id="pin-ch-status">Inside CH</span>
               <div class="pin-presets">
                 <button type="button" class="btn-chip" data-pin="47.3700,8.5425">Zurich</button>
                 <button type="button" class="btn-chip" data-pin="47.0516,8.3075">Lucerne</button>
@@ -330,7 +421,7 @@
               <label class="field-inline">
                 <span>Radius</span>
                 <input type="range" id="input-pin-radius" min="400" max="1500" step="100" value="600">
-                <span class="mono" id="pin-radius-val">600 m</span>
+                <span class="mono tabular" id="pin-radius-val">600 m</span>
               </label>
             </div>
             <div id="pin-map" class="pin-map"></div>
@@ -344,68 +435,74 @@
           </div>
         </fieldset>
 
-        <!-- 3. CAMERA CALIBRATION & TRACKING -->
-        <div class="form-row-2">
-          <fieldset class="form-section">
-            <legend>3. Camera Calibration</legend>
-            <div class="segmented segmented-full" id="calib-mode-group">
-              <button type="button" data-calib="auto" class="active">Auto FoV</button>
-              <button type="button" data-calib="file">intrinsics.json</button>
-              <button type="button" data-calib="manual_fov">Manual FoV</button>
-            </div>
-            <div id="calib-panel-file" class="calib-sub" hidden>
-              <input type="file" id="input-intrinsics-file" accept=".json">
-              <span class="mono muted-sm" id="intrinsics-status"></span>
-            </div>
-            <div id="calib-panel-manual" class="calib-sub" hidden>
-              <label class="field">
-                <span>Vertical FoV (degrees)</span>
-                <input type="number" id="input-manual-fov" class="input-control" value="48" min="10" max="120" step="0.5">
-              </label>
-            </div>
-          </fieldset>
+        <!-- 3. COLLAPSIBLE ADVANCED ENGINEERING CONTROLS -->
+        <details class="advanced-drawer" id="advanced-drawer">
+          <summary>
+            <span>Advanced Pipeline Settings</span>
+            <span class="mono advanced-summary" id="advanced-summary">Auto FoV · base · skip=1 · vis=off</span>
+          </summary>
 
-          <fieldset class="form-section">
-            <legend>4. Tracking (OrthoTrack)</legend>
-            <div class="form-row-2">
-              <label class="field">
-                <span>Fine Matcher</span>
-                <select id="select-fine-matcher" class="select-control">
-                  <option value="base" selected>base (fast &amp; accurate, ~2s/KF)</option>
-                  <option value="precise">precise (max accuracy, ~7.5s/KF)</option>
-                  <option value="turbo">turbo (fastest)</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Skip Frames</span>
-                <input type="number" id="input-skip-frames" class="input-control" value="1" min="1" max="10">
-              </label>
-            </div>
-            <div class="form-row-2">
-              <label class="field">
-                <span>Start Frame (opt)</span>
-                <input type="number" id="input-start-frame" class="input-control" placeholder="0" min="0">
-              </label>
-              <label class="field">
-                <span>End Frame (opt)</span>
-                <input type="number" id="input-end-frame" class="input-control" placeholder="All frames" min="1">
-              </label>
-            </div>
-            <label class="checkbox-inline" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);cursor:pointer;margin-top:2px;">
-              <input type="checkbox" id="input-save-kf-vis" style="accent-color:var(--mint);">
-              <span>Save keyframe match visuals (<code>--save_keyframe_vis</code>, adds ~5s/KF)</span>
-            </label>
-          </fieldset>
-        </div>
+          <div class="advanced-grid">
+            <fieldset class="form-section">
+              <legend>Camera Calibration</legend>
+              <div class="segmented segmented-full" id="calib-mode-group">
+                <button type="button" data-calib="auto" class="active">Auto FoV</button>
+                <button type="button" data-calib="file">intrinsics.json</button>
+                <button type="button" data-calib="manual_fov">Manual FoV</button>
+              </div>
+              <div id="calib-panel-file" class="calib-sub" hidden>
+                <input type="file" id="input-intrinsics-file" accept=".json">
+                <span class="mono muted-sm" id="intrinsics-status"></span>
+              </div>
+              <div id="calib-panel-manual" class="calib-sub" hidden>
+                <label class="field">
+                  <span>Vertical FoV (degrees)</span>
+                  <input type="number" id="input-manual-fov" class="input-control" value="48" min="10" max="120" step="0.5">
+                </label>
+              </div>
+            </fieldset>
 
-        <!-- 5. OPTIONAL GROUND TRUTH -->
-        <fieldset class="form-section">
-          <legend>5. Accuracy Evaluation — Optional Ground Truth</legend>
-          <div class="gt-upload-row">
-            <input type="file" id="input-gt-file" accept=".csv,.srt,.SRT">
-            <span class="mono muted-sm" id="gt-file-status">Accepts OrthoTrack poses .csv or DJI .SRT telemetry subtitles</span>
+            <fieldset class="form-section">
+              <legend>Tracking (OrthoTrack)</legend>
+              <div class="form-row-2">
+                <label class="field">
+                  <span>Fine Matcher</span>
+                  <select id="select-fine-matcher" class="select-control">
+                    <option value="base" selected>base (fast, ~2s/KF)</option>
+                    <option value="precise">precise (max, ~7.5s/KF)</option>
+                    <option value="turbo">turbo (fastest)</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Skip Frames</span>
+                  <input type="number" id="input-skip-frames" class="input-control" value="1" min="1" max="10">
+                </label>
+              </div>
+              <div class="form-row-2">
+                <label class="field">
+                  <span>Start Frame</span>
+                  <input type="number" id="input-start-frame" class="input-control" placeholder="0" min="0">
+                </label>
+                <label class="field">
+                  <span>End Frame</span>
+                  <input type="number" id="input-end-frame" class="input-control" placeholder="All frames" min="1">
+                </label>
+              </div>
+              <label class="checkbox-inline">
+                <input type="checkbox" id="input-save-kf-vis">
+                <span>Save keyframe match visuals (<code>--save_keyframe_vis</code>, +5s/KF)</span>
+              </label>
+            </fieldset>
           </div>
-        </fieldset>
+
+          <fieldset class="form-section" style="margin-top:10px;">
+            <legend>Optional Ground Truth Evaluation</legend>
+            <div class="gt-upload-row">
+              <input type="file" id="input-gt-file" accept=".csv,.srt,.SRT">
+              <span class="mono muted-sm" id="gt-file-status">Accepts OrthoTrack poses .csv or DJI .SRT telemetry subtitles</span>
+            </div>
+          </fieldset>
+        </details>
 
         <div class="form-error" id="form-new-flight-error" hidden></div>
 
@@ -439,7 +536,7 @@
 
         <div class="stepper-progress-wrap" id="stepper-progress-wrap">
           <div class="stepper-progress-bar"><div class="stepper-progress-fill" id="stepper-progress-fill"></div></div>
-          <div class="mono stepper-progress-meta" id="stepper-progress-meta">Initializing...</div>
+          <div class="mono tabular stepper-progress-meta" id="stepper-progress-meta">Initializing...</div>
         </div>
 
         <details class="terminal-details">

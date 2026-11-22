@@ -98,6 +98,16 @@ export class LaunchController {
     }).addTo(this.leafletMap);
 
     this.pinMarker = L.marker([this.pinLat, this.pinLon]).addTo(this.leafletMap);
+    // Draw Switzerland swisstopo coverage bounding box
+    L.rectangle([[45.78, 5.90], [47.85, 10.55]], {
+      color: "#80f2be",
+      weight: 1.2,
+      dashArray: "5 5",
+      fill: false,
+      opacity: 0.55,
+      interactive: false,
+    }).addTo(this.leafletMap);
+
     const radius = Number(document.getElementById("input-pin-radius").value) || 600;
     this.pinCircle = L.circle([this.pinLat, this.pinLon], {
       radius,
@@ -110,16 +120,46 @@ export class LaunchController {
     this.leafletMap.on("click", (ev) => {
       this._setPin(ev.latlng.lat, ev.latlng.lng, false);
     });
+    this._updatePinChStatus();
     setTimeout(() => this.leafletMap.invalidateSize(), 100);
+  }
+
+  _updatePinChStatus() {
+    const el = document.getElementById("pin-ch-status");
+    if (!el) return;
+    const inCh = this.pinLat >= 45.78 && this.pinLat <= 47.85 && this.pinLon >= 5.90 && this.pinLon <= 10.55;
+    el.textContent = inCh ? "Inside CH (swisstopo)" : "Outside CH (unsupported)";
+    el.classList.toggle("outside", !inCh);
   }
 
   _setPin(lat, lon, pan = true) {
     this.pinLat = Number(lat);
     this.pinLon = Number(lon);
     document.getElementById("pin-coords-readout").textContent = `${this.pinLat.toFixed(4)}, ${this.pinLon.toFixed(4)}`;
+    this._updatePinChStatus();
     if (this.pinMarker) this.pinMarker.setLatLng([this.pinLat, this.pinLon]);
     if (this.pinCircle) this.pinCircle.setLatLng([this.pinLat, this.pinLon]);
     if (pan && this.leafletMap) this.leafletMap.setView([this.pinLat, this.pinLon], 14);
+  }
+
+  _selectLocMode(mode) {
+    this.locMode = mode;
+    const locGroup = document.getElementById("loc-mode-group");
+    for (const b of locGroup.querySelectorAll("button")) b.classList.toggle("active", b.dataset.loc === mode);
+    document.getElementById("loc-panel-auto").hidden = mode !== "auto";
+    document.getElementById("loc-panel-pin").hidden = mode !== "pin";
+    document.getElementById("loc-panel-local").hidden = mode !== "local_map";
+    if (mode === "pin") this._initLeafletMap();
+  }
+
+  _updateAdvancedSummary() {
+    const el = document.getElementById("advanced-summary");
+    if (!el) return;
+    const calibLabel = this.calibMode === "auto" ? "Auto FoV" : this.calibMode === "file" ? "intrinsics.json" : `FoV ${document.getElementById("input-manual-fov").value}°`;
+    const matcher = document.getElementById("select-fine-matcher").value;
+    const skip = document.getElementById("input-skip-frames").value || "1";
+    const vis = document.getElementById("input-save-kf-vis").checked ? "vis=on" : "vis=off";
+    el.textContent = `${calibLabel} · ${matcher} · skip=${skip} · ${vis}`;
   }
 
   _bindForm() {
@@ -171,13 +211,17 @@ export class LaunchController {
     locGroup.addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-loc]");
       if (!btn) return;
-      this.locMode = btn.dataset.loc;
-      for (const b of locGroup.querySelectorAll("button")) b.classList.toggle("active", b === btn);
-      document.getElementById("loc-panel-auto").hidden = this.locMode !== "auto";
-      document.getElementById("loc-panel-pin").hidden = this.locMode !== "pin";
-      document.getElementById("loc-panel-local").hidden = this.locMode !== "local_map";
-      if (this.locMode === "pin") this._initLeafletMap();
+      this._selectLocMode(btn.dataset.loc);
     });
+
+    // Clickable cities on the Switzerland coverage mini-map
+    for (const g of document.querySelectorAll("[data-ch-city]")) {
+      g.addEventListener("click", () => {
+        const [lat, lon] = g.dataset.chCity.split(",").map(Number);
+        this._selectLocMode("pin");
+        this._setPin(lat, lon, true);
+      });
+    }
 
     // Radius sliders
     const autoRad = document.getElementById("input-auto-radius");
@@ -207,7 +251,13 @@ export class LaunchController {
       for (const b of calibGroup.querySelectorAll("button")) b.classList.toggle("active", b === btn);
       document.getElementById("calib-panel-file").hidden = this.calibMode !== "file";
       document.getElementById("calib-panel-manual").hidden = this.calibMode !== "manual_fov";
+      this._updateAdvancedSummary();
     });
+
+    for (const id of ["select-fine-matcher", "input-skip-frames", "input-save-kf-vis", "input-manual-fov"]) {
+      document.getElementById(id)?.addEventListener("change", () => this._updateAdvancedSummary());
+    }
+    this._updateAdvancedSummary();
 
     // Aux file uploads (intrinsics & GT)
     document.getElementById("input-intrinsics-file").addEventListener("change", async (e) => {
