@@ -1,4 +1,4 @@
-.PHONY: help setup clone-third-party venv download-weights check-gpu smoke-data smoke-test fetch-map track export serve clean
+.PHONY: help setup clone-third-party venv download-weights download-vpr-weights build-index benchmark-vpr check-gpu smoke-data smoke-test fetch-map track export serve clean
 
 UV          ?= uv
 PYTHON      := .venv/bin/python
@@ -48,8 +48,18 @@ clone-third-party: ## Clone pinned OrthoTrack and RoMaV2 into third_party/
 venv: ## Create .venv (Python 3.11) and install dependencies from pyproject.toml via uv
 	$(UV) sync --python 3.11 --extra app
 
-download-weights: ## Pre-download RoMaV2 pretrained weights into torch hub cache
+download-weights: ## Pre-download RoMaV2 + VPR (MegaLoc, Sample4Geo) pretrained weights
 	PYTHONPATH=$(ORTHOTRACK) $(PYTHON) -c "from romav2 import RoMaV2; RoMaV2(RoMaV2.Cfg(compile=False)); print('RoMaV2 weights ready.')"
+	$(PYTHON) scripts/download_vpr_weights.py
+
+download-vpr-weights: ## Pre-download MegaLoc and Sample4Geo University-1652 weights into .cache/
+	$(PYTHON) scripts/download_vpr_weights.py
+
+build-index: ## Build offline Mini-Switzerland VPR index (MegaLoc + Sample4Geo)
+	$(PYTHON) scripts/build_vpr_index.py --models megaloc sample4geo
+
+benchmark-vpr: ## Run MegaLoc vs Sample4Geo + PnP geometric verification benchmark
+	$(PYTHON) scripts/benchmark_vpr.py --models megaloc sample4geo
 
 check-gpu: ## Verify PyTorch CUDA, GPU memory, and RoMaV2 import
 	@PYTHONPATH=$(ORTHOTRACK) $(PYTHON) -c "\

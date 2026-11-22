@@ -14,10 +14,11 @@ export class LaunchController {
     this.uploadedIntrinsicsPath = null;
     this.uploadedGtPath = null;
 
-    this.locMode = "auto";
+    this.locMode = "vpr";
     this.calibMode = "auto";
     this.pinLat = 47.37;
     this.pinLon = 8.5425;
+    this.lastPayload = null;
 
     this.leafletMap = null;
     this.pinMarker = null;
@@ -76,12 +77,21 @@ export class LaunchController {
 
   _updateVlmHint() {
     const cfg = this.getSessionSettings();
+    const vprHint = document.getElementById("vpr-mode-hint");
+    if (vprHint) {
+      if (cfg.vpr_ready) {
+        const tiles = Number(cfg.vpr_num_tiles || 0).toLocaleString();
+        vprHint.innerHTML = `Offline Cross-View VPR (active winner: <code>${cfg.vpr_active_model}</code> · <strong>${tiles} tiles</strong> across 10 Swiss regions) + RoMaV2 &amp; PnP-RANSAC verification. Zero cloud APIs.`;
+      } else {
+        vprHint.innerHTML = `<span style="color: var(--amber)">Offline VPR index not built yet.</span> Run <code>make build-index</code> or use <strong>Global VLM</strong> / <strong>Pin on Map</strong>.`;
+      }
+    }
     const hint = document.getElementById("vlm-mode-hint");
     if (!cfg.openrouter_configured && !cfg.openrouter_api_key) {
-      hint.innerHTML = `<span style="color: var(--amber)">OPENROUTER_API_KEY not set yet.</span> Add it in <code>.env</code> or ⚙ Settings for Auto VLM detection, or switch to <strong>Pin on Map</strong> / <strong>Saved Local Map</strong>.`;
+      hint.innerHTML = `<span style="color: var(--amber)">OPENROUTER_API_KEY not set yet.</span> Add it in <code>.env</code> or ⚙ Settings for Global VLM, or use <strong>Offline VPR</strong> / <strong>Pin on Map</strong>.`;
     } else {
       const model = cfg.openrouter_model || "google/gemini-2.5-flash";
-      hint.innerHTML = `OpenRouter Vision (<code>${model}</code>) infers approximate (lat, lon) from initial frames → matches cached local maps or auto-fetches swisstopo 10cm DOP + 50cm DSM tiles.`;
+      hint.innerHTML = `OpenRouter Vision (<code>${model}</code>) infers approximate (lat, lon) anywhere in Switzerland → matches cached local maps or auto-fetches swisstopo 3D tiles.`;
     }
   }
 
@@ -146,6 +156,7 @@ export class LaunchController {
     this.locMode = mode;
     const locGroup = document.getElementById("loc-mode-group");
     for (const b of locGroup.querySelectorAll("button")) b.classList.toggle("active", b.dataset.loc === mode);
+    document.getElementById("loc-panel-vpr").hidden = mode !== "vpr";
     document.getElementById("loc-panel-auto").hidden = mode !== "auto";
     document.getElementById("loc-panel-pin").hidden = mode !== "pin";
     document.getElementById("loc-panel-local").hidden = mode !== "local_map";
@@ -224,6 +235,10 @@ export class LaunchController {
     }
 
     // Radius sliders
+    const vprRad = document.getElementById("input-vpr-radius");
+    vprRad?.addEventListener("input", () => {
+      document.getElementById("vpr-radius-val").textContent = `${vprRad.value} m`;
+    });
     const autoRad = document.getElementById("input-auto-radius");
     autoRad.addEventListener("input", () => {
       document.getElementById("auto-radius-val").textContent = `${autoRad.value} m`;
@@ -351,12 +366,15 @@ export class LaunchController {
       name: document.getElementById("input-flight-name").value.trim() || null,
       video_path: videoPath,
       location_mode: this.locMode,
+      vpr_model: this.locMode === "vpr" ? (document.getElementById("select-vpr-model").value || null) : null,
       pin_lat: this.locMode === "pin" ? this.pinLat : null,
       pin_lon: this.locMode === "pin" ? this.pinLon : null,
       radius_m: Number(
         this.locMode === "pin"
           ? document.getElementById("input-pin-radius").value
-          : document.getElementById("input-auto-radius").value
+          : this.locMode === "vpr"
+            ? document.getElementById("input-vpr-radius").value
+            : document.getElementById("input-auto-radius").value
       ),
       local_map_path: this.locMode === "local_map" ? document.getElementById("select-local-map").value : null,
       calibration_mode: this.calibMode,
@@ -371,7 +389,11 @@ export class LaunchController {
       openrouter_api_key: session.openrouter_api_key || null,
       openrouter_model: session.openrouter_model || null,
     };
+    this.lastPayload = payload;
+    await this._launchPayload(payload);
+  }
 
+  async _launchPayload(payload) {
     try {
       const btn = document.getElementById("btn-run-flight");
       btn.disabled = true;
@@ -399,6 +421,12 @@ export class LaunchController {
       if (!this.activeJobId) return;
       await fetch(`/api/jobs/${this.activeJobId}/cancel`, { method: "POST" });
     });
+    document.getElementById("btn-retry-vlm").addEventListener("click", async () => {
+      if (!this.lastPayload) return;
+      const retryPayload = { ...this.lastPayload, location_mode: "auto" };
+      this._closeStepper();
+      await this._launchPayload(retryPayload);
+    });
     document.getElementById("btn-stepper-close").addEventListener("click", () => {
       this._closeStepper();
     });
@@ -417,8 +445,11 @@ export class LaunchController {
     document.getElementById("stepper-progress-fill").style.width = "0%";
     document.getElementById("stepper-progress-meta").textContent = "Starting job...";
     document.getElementById("btn-cancel-job").hidden = false;
+    document.getElementById("btn-retry-vlm").hidden = true;
     document.getElementById("btn-stepper-open").hidden = true;
     document.getElementById("btn-stepper-close").hidden = true;
+    const candWrap = document.getElementById("vpr-cand-table-wrap");
+    if (candWrap) { candWrap.innerHTML = ""; candWrap.hidden = true; }
     document.getElementById("modal-stepper").hidden = false;
 
     this._renderStepperState(job);
@@ -449,7 +480,6 @@ export class LaunchController {
       document.getElementById("btn-stepper-close").hidden = false;
 
       if (data.status === "completed") {
-        // Auto-transition into Output Studio after a short beat so user sees 5/5 green
         document.getElementById("btn-stepper-open").hidden = false;
         setTimeout(() => {
           if (!document.getElementById("modal-stepper").hidden && this.activeFlightId === data.flight_id) {
@@ -460,6 +490,9 @@ export class LaunchController {
       } else if (data.status === "rejected") {
         document.getElementById("btn-stepper-open").hidden = false;
         document.getElementById("btn-stepper-open").textContent = "Inspect Rejected Run";
+        if (data.location_mode === "vpr" && this.lastPayload) {
+          document.getElementById("btn-retry-vlm").hidden = false;
+        }
       }
     });
   }
@@ -471,9 +504,42 @@ export class LaunchController {
     }
     document.getElementById("modal-stepper").hidden = true;
     document.getElementById("btn-stepper-open").textContent = "Open in Studio";
+    document.getElementById("btn-retry-vlm").hidden = true;
   }
 
   _renderStepperState(job) {
+    const step1Label = document.getElementById("step1-label");
+    if (step1Label) {
+      step1Label.textContent =
+        job.location_mode === "vpr"
+          ? "Offline VPR + PnP Verification"
+          : job.location_mode === "auto"
+            ? "Global VLM Region Detect"
+            : "Region Prior";
+    }
+
+    const candWrap = document.getElementById("vpr-cand-table-wrap");
+    if (candWrap && job.vpr_result?.candidates?.length) {
+      const rows = job.vpr_result.candidates
+        .map((c, i) => {
+          const badge = c.accepted
+            ? `<span class="vpr-badge-ok">✓ ACCEPTED</span>`
+            : `<span class="vpr-badge-no">✗ rejected</span>`;
+          return `<tr class="${c.accepted ? "accepted" : ""}">
+            <td>#${i + 1}</td>
+            <td>${c.region} (${c.size_m}m · ${c.rot_deg}°)</td>
+            <td>${Number(c.score).toFixed(3)}</td>
+            <td>${c.inliers}</td>
+            <td>${badge}</td>
+          </tr>`;
+        })
+        .join("");
+      candWrap.innerHTML = `<table class="vpr-cand-table">
+        <thead><tr><th>#</th><th>Candidate Tile</th><th>Sim</th><th>PnP Inliers</th><th>Verdict</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+      candWrap.hidden = false;
+    }
     const pill = document.getElementById("stepper-status-pill");
     const st = (job.status || "running").toUpperCase();
     pill.textContent = st;

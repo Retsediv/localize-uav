@@ -327,20 +327,20 @@
             <div class="ch-card-head">
               <div class="ch-badge">
                 <span class="swiss-cross" aria-hidden="true"></span>
-                <span>SWITZERLAND ONLY</span>
+                <span>SWITZERLAND COVERAGE</span>
               </div>
               <span class="ch-provider mono">swisstopo 3D</span>
             </div>
 
             <div class="ch-map-frame">
-              <svg class="ch-svg" viewBox="0 0 340 210" role="img" aria-label="Switzerland supported 3D map coverage">
+              <svg class="ch-svg" viewBox="0 0 340 210" role="img" aria-label="Switzerland offline VPR and swisstopo 3D coverage">
                 <defs>
                   <linearGradient id="chFill" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stop-color="#80f2be" stop-opacity="0.24"/>
-                    <stop offset="100%" stop-color="#4fd1a5" stop-opacity="0.08"/>
+                    <stop offset="0%" stop-color="#80f2be" stop-opacity="0.22"/>
+                    <stop offset="100%" stop-color="#4fd1a5" stop-opacity="0.06"/>
                   </linearGradient>
                   <radialGradient id="chGlow" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stop-color="#80f2be" stop-opacity="0.26"/>
+                    <stop offset="0%" stop-color="#80f2be" stop-opacity="0.22"/>
                     <stop offset="100%" stop-color="#80f2be" stop-opacity="0"/>
                   </radialGradient>
                 </defs>
@@ -353,38 +353,66 @@
                   <line x1="170" y1="0" x2="170" y2="210"/>
                   <line x1="255" y1="0" x2="255" y2="210"/>
                 </g>
-                <ellipse cx="170" cy="105" rx="140" ry="82" fill="url(#chGlow)"/>
+                <ellipse cx="170" cy="105" rx="140" ry="82" fill="url(#chGlow)" stroke="none"/>
                 <!-- Accurate Switzerland border -->
-                <path class="ch-outline" d="M 14.4,166.2 L 27.5,152.5 L 22.7,136.0 L 40.5,117.8 L 48.8,98.6 L 66.6,81.3 L 81.1,63.9 L 87.2,44.7 L 112.0,46.6 L 125.7,32.9 L 149.1,35.6 L 171.0,31.0 L 192.3,14.6 L 213.6,26.5 L 238.3,27.4 L 262.4,41.1 L 267.9,50.2 L 258.9,64.8 L 263.8,81.3 L 283.7,83.1 L 303.6,94.0 L 324.9,99.5 L 322.8,121.4 L 313.9,128.7 L 295.4,123.3 L 300.2,143.3 L 301.5,157.0 L 290.5,156.1 L 278.2,143.3 L 261.0,147.9 L 247.3,134.2 L 238.3,155.2 L 227.4,174.4 L 224.6,194.5 L 215.7,192.7 L 212.2,179.0 L 201.9,168.0 L 184.1,156.1 L 180.6,136.0 L 165.5,158.0 L 151.8,177.1 L 131.2,183.5 L 109.2,189.9 L 88.6,189.9 L 78.3,172.6 L 71.4,143.3 L 44.6,139.7 L 28.2,159.8 Z" fill="url(#chFill)" stroke="#80f2be" stroke-width="1.6"/>
+                <path class="ch-outline" d="M 14.4,166.2 L 27.5,152.5 L 22.7,136.0 L 40.5,117.8 L 48.8,98.6 L 66.6,81.3 L 81.1,63.9 L 87.2,44.7 L 112.0,46.6 L 125.7,32.9 L 149.1,35.6 L 171.0,31.0 L 192.3,14.6 L 213.6,26.5 L 238.3,27.4 L 262.4,41.1 L 267.9,50.2 L 258.9,64.8 L 263.8,81.3 L 283.7,83.1 L 303.6,94.0 L 324.9,99.5 L 322.8,121.4 L 313.9,128.7 L 295.4,123.3 L 300.2,143.3 L 301.5,157.0 L 290.5,156.1 L 278.2,143.3 L 261.0,147.9 L 247.3,134.2 L 238.3,155.2 L 227.4,174.4 L 224.6,194.5 L 215.7,192.7 L 212.2,179.0 L 201.9,168.0 L 184.1,156.1 L 180.6,136.0 L 165.5,158.0 L 151.8,177.1 L 131.2,183.5 L 109.2,189.9 L 88.6,189.9 L 78.3,172.6 L 71.4,143.3 L 44.6,139.7 L 28.2,159.8 Z" fill="url(#chFill)" stroke="#80f2be" stroke-width="1.5"/>
 
-                <!-- Secondary Swiss cities -->
-                <g class="ch-city-muted">
-                  <circle cx="126.3" cy="35.6" r="2.2" fill="#8ea0a7"/><text x="132" y="38.5">Basel</text>
-                  <circle cx="27.0" cy="159.4" r="2.2" fill="#8ea0a7"/><text x="34" y="163">Geneva</text>
-                  <circle cx="219.9" cy="177.7" r="2.2" fill="#8ea0a7"/><text x="226" y="181">Lugano</text>
+                <!-- Offline VPR Indexed Cities (Cyan - auto-detected offline, fetches 3D map on match) -->
+                <g class="ch-hotspot ch-vpr-city" data-ch-city="47.5596,7.5886" title="Basel — Offline VPR indexed (click to pin)">
+                  <circle cx="126.3" cy="35.6" r="3.1" fill="#7ee0ff" stroke="#0d1215" stroke-width="1.1"/>
+                  <text x="132" y="34.0">Basel</text>
+                </g>
+                <g class="ch-hotspot ch-vpr-city" data-ch-city="47.4245,9.3767" title="St. Gallen — Offline VPR indexed (click to pin)">
+                  <circle cx="249.1" cy="48.0" r="3.1" fill="#7ee0ff" stroke="#0d1215" stroke-width="1.1"/>
+                  <text x="256" y="47.0">St. Gallen</text>
+                </g>
+                <g class="ch-hotspot ch-vpr-city" data-ch-city="46.9480,7.4474" title="Bern — Offline VPR indexed (click to pin)">
+                  <circle cx="116.6" cy="91.5" r="3.1" fill="#7ee0ff" stroke="#0d1215" stroke-width="1.1"/>
+                  <text x="90" y="88.5">Bern</text>
+                </g>
+                <g class="ch-hotspot ch-vpr-city" data-ch-city="46.6863,7.8632" title="Interlaken — Offline VPR indexed (click to pin)">
+                  <circle cx="145.1" cy="115.4" r="3.1" fill="#7ee0ff" stroke="#0d1215" stroke-width="1.1"/>
+                  <text x="151" y="118.4">Interlaken</text>
+                </g>
+                <g class="ch-hotspot ch-vpr-city" data-ch-city="46.5197,6.6323" title="Lausanne — Offline VPR indexed (click to pin)">
+                  <circle cx="60.6" cy="130.6" r="3.1" fill="#7ee0ff" stroke="#0d1215" stroke-width="1.1"/>
+                  <text x="66" y="133.5">Lausanne</text>
+                </g>
+                <g class="ch-hotspot ch-vpr-city" data-ch-city="46.2044,6.1432" title="Geneva — Offline VPR indexed (click to pin)">
+                  <circle cx="27.0" cy="159.4" r="3.1" fill="#7ee0ff" stroke="#0d1215" stroke-width="1.1"/>
+                  <text x="33" y="162.5">Geneva</text>
+                </g>
+                <g class="ch-hotspot ch-vpr-city" data-ch-city="46.0207,7.7491" title="Zermatt — Offline VPR indexed (click to pin)">
+                  <circle cx="137.3" cy="176.2" r="3.1" fill="#7ee0ff" stroke="#0d1215" stroke-width="1.1"/>
+                  <text x="143" y="179.2">Zermatt</text>
+                </g>
+                <g class="ch-hotspot ch-vpr-city" data-ch-city="46.0037,8.9511" title="Lugano — Offline VPR indexed (click to pin)">
+                  <circle cx="219.9" cy="177.7" r="3.1" fill="#7ee0ff" stroke="#0d1215" stroke-width="1.1"/>
+                  <text x="226" y="180.7">Lugano</text>
                 </g>
 
-                <!-- Clickable primary hotspots (cached / quick-pin) -->
-                <g class="ch-hotspot" data-ch-city="47.3700,8.5425" title="Click to pin Zurich">
+                <!-- Cached High-Res 3D + Offline VPR Hotspots (Mint pulsing beacons) -->
+                <g class="ch-hotspot ch-cached-city" data-ch-city="47.3700,8.5425" title="Zurich — Cached high-res 3D + Offline VPR">
                   <circle class="ch-ping" cx="191.8" cy="53.0" r="8"/>
-                  <circle cx="191.8" cy="53.0" r="3.6" fill="#80f2be" stroke="#0d1215" stroke-width="1.2"/>
-                  <text x="200" y="56.5">Zurich</text>
+                  <circle cx="191.8" cy="53.0" r="3.7" fill="#80f2be" stroke="#0d1215" stroke-width="1.2"/>
+                  <text x="199" y="56.0">Zurich</text>
                 </g>
-                <g class="ch-hotspot" data-ch-city="47.0516,8.3075" title="Click to pin Lucerne">
+                <g class="ch-hotspot ch-cached-city" data-ch-city="47.0516,8.3075" title="Lucerne — Cached high-res 3D + Offline VPR">
                   <circle class="ch-ping" cx="175.7" cy="82.0" r="8"/>
-                  <circle cx="175.7" cy="82.0" r="3.6" fill="#80f2be" stroke="#0d1215" stroke-width="1.2"/>
-                  <text x="184" y="85.5">Lucerne</text>
-                </g>
-                <g class="ch-hotspot" data-ch-city="46.9480,7.4474" title="Click to pin Bern">
-                  <circle cx="116.6" cy="91.5" r="3.2" fill="#ffc477" stroke="#0d1215" stroke-width="1.2"/>
-                  <text x="123" y="95" fill="#ffc477">Bern</text>
+                  <circle cx="175.7" cy="82.0" r="3.7" fill="#80f2be" stroke="#0d1215" stroke-width="1.2"/>
+                  <text x="183" y="85.0">Lucerne</text>
                 </g>
               </svg>
               <span class="ch-coord-tag mono">45.8°–47.8°N · 5.9°–10.5°E</span>
             </div>
 
+            <div class="ch-legend">
+              <span class="ch-leg-item"><i class="leg-dot leg-mint"></i>Cached 3D + VPR (Zurich, Lucerne)</span>
+              <span class="ch-leg-item"><i class="leg-dot leg-cyan"></i>Offline VPR Indexed (8 cities)</span>
+            </div>
+
             <p class="ch-caption" id="ch-coverage-caption">
-              Live 3D map backend uses <strong>swisstopo</strong> (<code>SWISSIMAGE</code> 10cm + <code>swissSURFACE3D</code>). Upload drone footage filmed in <strong>Switzerland</strong> — or select a pre-packaged scene under <em>Saved Local Map</em>.
+              <strong>Offline VPR</strong> auto-detects the <strong>10 highlighted Swiss regions</strong> without cloud APIs. If your video is from another part of Switzerland, use <strong>Pin on Map</strong> or <strong>Global VLM (Gemini)</strong>.
             </p>
           </div>
         </div>
@@ -393,14 +421,35 @@
         <fieldset class="form-section">
           <legend>2. Region Discovery &amp; 3D Map Prior</legend>
           <div class="segmented segmented-full" id="loc-mode-group">
-            <button type="button" data-loc="auto" class="active">1. Auto (Video-only VLM)</button>
-            <button type="button" data-loc="pin">2. Pin on Map (CH)</button>
-            <button type="button" data-loc="local_map">3. Saved Local Map</button>
+            <button type="button" data-loc="vpr" class="active">1. Auto — Offline VPR</button>
+            <button type="button" data-loc="auto">2. Global VLM (Gemini)</button>
+            <button type="button" data-loc="pin">3. Pin on Map (CH)</button>
+            <button type="button" data-loc="local_map">4. Saved Local Map</button>
           </div>
 
-          <div id="loc-panel-auto" class="loc-panel">
+          <div id="loc-panel-vpr" class="loc-panel">
+            <p class="hint-text" id="vpr-mode-hint">
+              Offline Cross-View VPR searches Mini-Switzerland tiles + verifies Top-5 candidates with RoMaV2 &amp; PnP-RANSAC (zero cloud APIs).
+            </p>
+            <div class="form-row-2">
+              <label class="field">
+                <span>VPR Retrieval Model</span>
+                <select id="select-vpr-model" class="select-control">
+                  <option value="">Benchmark Winner (auto)</option>
+                  <option value="sample4geo">Sample4Geo (ConvNeXt-Base U1652)</option>
+                  <option value="megaloc">MegaLoc (DINOv2 + SALAD)</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>3D Map Radius (<span class="mono tabular" id="vpr-radius-val">600 m</span>)</span>
+                <input type="range" id="input-vpr-radius" min="400" max="1500" step="100" value="600" style="margin-top:8px;accent-color:var(--mint);">
+              </label>
+            </div>
+          </div>
+
+          <div id="loc-panel-auto" class="loc-panel" hidden>
             <p class="hint-text" id="vlm-mode-hint">
-              OpenRouter Vision infers approximate (lat, lon) from initial frames → reuses cached maps or auto-fetches swisstopo 3D tiles.
+              OpenRouter Vision (Gemini) infers approximate (lat, lon) anywhere in Switzerland → reuses cached maps or auto-fetches swisstopo 3D tiles.
             </p>
             <label class="field field-inline">
               <span>Search radius</span>
@@ -527,7 +576,14 @@
 
       <div class="modal-body">
         <ol class="stepper-list" id="stepper-list">
-          <li data-step="vlm_detect"><span class="step-dot"></span><div class="step-copy"><strong>VLM Region Detect</strong><span class="step-detail">Waiting...</span></div></li>
+          <li data-step="vlm_detect">
+            <span class="step-dot"></span>
+            <div class="step-copy">
+              <strong id="step1-label">Region Detect (Offline VPR)</strong>
+              <span class="step-detail">Waiting...</span>
+              <div class="vpr-cand-table-wrap" id="vpr-cand-table-wrap" hidden></div>
+            </div>
+          </li>
           <li data-step="fetch_map"><span class="step-dot"></span><div class="step-copy"><strong>Fetch 3D Map</strong><span class="step-detail">Waiting...</span></div></li>
           <li data-step="cold_start"><span class="step-dot"></span><div class="step-copy"><strong>Cold-Start Keyframe</strong><span class="step-detail">Waiting...</span></div></li>
           <li data-step="frame_tracking"><span class="step-dot"></span><div class="step-copy"><strong>Frame Tracking</strong><span class="step-detail">Waiting...</span></div></li>
@@ -546,6 +602,7 @@
 
         <div class="modal-foot">
           <button type="button" class="btn btn-danger" id="btn-cancel-job">Cancel Job</button>
+          <button type="button" class="btn btn-secondary" id="btn-retry-vlm" hidden>Retry with Global VLM (Gemini)</button>
           <button type="button" class="btn btn-primary" id="btn-stepper-open" hidden>Open in Studio</button>
           <button type="button" class="btn btn-secondary" id="btn-stepper-close" hidden>Close</button>
         </div>

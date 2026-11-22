@@ -413,7 +413,8 @@ async def upload_aux_file(kind: str = "gt", file: UploadFile = File(...)) -> Dic
 class JobCreateRequest(BaseModel):
     name: Optional[str] = None
     video_path: str
-    location_mode: str = "auto"  # auto | pin | local_map
+    location_mode: str = "vpr"  # vpr | auto | pin | local_map
+    vpr_model: Optional[str] = None  # sample4geo | megaloc | None (active winner)
     pin_lat: Optional[float] = None
     pin_lon: Optional[float] = None
     radius_m: float = 600.0

@@ -39,10 +39,11 @@ from app.vlm import (
     find_matching_local_map,
     is_in_switzerland,
 )
+from app.vpr import localize_video_offline_vpr
 from scripts.prepare_map import prepare_single_file_map
 
 STEP_IDS = [
-    ("vlm_detect", "VLM Region Detect"),
+    ("vlm_detect", "Region Detect (Offline VPR / VLM)"),
     ("fetch_map", "Fetch 3D Map"),
     ("cold_start", "Cold-Start Keyframe"),
     ("frame_tracking", "Frame Tracking"),
@@ -178,6 +179,7 @@ class JobState:
     fps: float = 0.0
     tracking_badge: str = ""
     vlm_result: Optional[Dict[str, Any]] = None
+    vpr_result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     logs: List[str] = field(default_factory=list)
     cancel_requested: bool = False
@@ -190,12 +192,14 @@ class JobState:
             "name": self.name,
             "status": self.status,
             "created_at": self.created_at,
+            "location_mode": self.params.get("location_mode", "vpr"),
             "steps": self.steps,
             "frame_current": self.frame_current,
             "frame_total": self.frame_total,
             "fps": self.fps,
             "tracking_badge": self.tracking_badge,
             "vlm_result": self.vlm_result,
+            "vpr_result": self.vpr_result,
             "error": self.error,
             "logs_tail": self.logs[-120:],
         }
@@ -423,6 +427,7 @@ class JobManager:
             "map_dir": str(map_dir.relative_to(ROOT_DIR)) if (map_dir and map_dir.is_relative_to(ROOT_DIR)) else (str(map_dir) if map_dir else None),
             "center_wgs84": center_wgs84,
             "vlm_result": job.vlm_result,
+            "vpr_result": job.vpr_result,
             "params": {k: v for k, v in job.params.items() if "key" not in k.lower() and "token" not in k.lower()},
         }
         (out_dir / "flight_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
@@ -446,7 +451,7 @@ class JobManager:
             base_env["PYTHONUNBUFFERED"] = "1"
             base_env["MPLCONFIGDIR"] = "/tmp/groundframe_mpl"
 
-            location_mode = p.get("location_mode", "auto")  # auto | pin | local_map
+            location_mode = p.get("location_mode", "vpr")  # vpr | auto | pin | local_map
             radius_m = float(p.get("radius_m") or 600.0)
             map_dir: Optional[Path] = None
             sequence_dir: Optional[Path] = None
@@ -455,9 +460,49 @@ class JobManager:
 
             try:
                 # -----------------------------------------------------------
-                # STEP 1: VLM Region Detect
+                # STEP 1: Offline VPR + PnP Verification OR Global VLM Detect
                 # -----------------------------------------------------------
-                if location_mode == "auto":
+                if location_mode == "vpr":
+                    self._set_step(job, "vlm_detect", "running", "Querying Offline VPR index & verifying Top-5 via RoMaV2 + PnP...")
+                    vpr = localize_video_offline_vpr(
+                        video_path,
+                        model_key=p.get("vpr_model") or None,
+                        top_k=5,
+                        log_fn=lambda m: self._log(job, m),
+                    )
+                    job.vpr_result = vpr
+                    self._emit(job.job_id, "state", job.snapshot())
+
+                    if not vpr["accepted"] or vpr["winner"] is None:
+                        max_inl = max((c["inliers"] for c in vpr["candidates"]), default=0)
+                        reason = (
+                            f"Offline VPR ({vpr['model']}) + PnP rejected all Top-{len(vpr['candidates'])} candidates "
+                            f"(max {max_inl} PnP inliers). Clip is out-of-index or featureless — try Global VLM or Pin on Map."
+                        )
+                        self._set_step(job, "vlm_detect", "rejected", reason)
+                        for sid in ("fetch_map", "cold_start", "frame_tracking", "export_wgs84"):
+                            self._set_step(job, sid, "skipped")
+                        self._write_rejected_flight(job, out_dir, video_path, video_info, reason, "Unmatched (Offline VPR)")
+                        job.status = "rejected"
+                        job.error = reason
+                        self._emit(job.job_id, "done", job.snapshot())
+                        return
+
+                    win = vpr["winner"]
+                    lat, lon = float(win["center_lat"]), float(win["center_lon"])
+                    location_label = win["region"].replace("_", " ").title()
+                    center_wgs84 = {"lat": lat, "lon": lon}
+                    if win.get("map_dir"):
+                        cand_dir = (ROOT_DIR / win["map_dir"]).resolve()
+                        if cand_dir.exists():
+                            map_dir = cand_dir
+                    self._set_step(
+                        job,
+                        "vlm_detect",
+                        "done",
+                        f"Offline VPR ({vpr['model']}): {win['region']} · sim={win['score']:.3f} · {win['inliers']} PnP inliers ({vpr['search_ms']:.1f}ms search)",
+                    )
+                elif location_mode == "auto":
                     self._set_step(job, "vlm_detect", "running", "Sampling video frames for OpenRouter Vision...")
                     api_key = p.get("openrouter_api_key") or SETTINGS.openrouter_api_key
                     model = p.get("openrouter_model") or SETTINGS.openrouter_model
@@ -513,6 +558,8 @@ class JobManager:
                         map_dir = chosen
                         location_label = chosen.name
                         self._set_step(job, "fetch_map", "done", f"Using cached map: {chosen.name}")
+                elif map_dir is not None:
+                    self._set_step(job, "fetch_map", "done", f"Using VPR-matched local map: {map_dir.name}")
                 else:
                     assert center_wgs84 is not None
                     lat, lon = center_wgs84["lat"], center_wgs84["lon"]

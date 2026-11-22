@@ -61,12 +61,38 @@ class RuntimeSettings:
 
     def public_client_config(self) -> Dict[str, Any]:
         """Config sent to the browser for CesiumJS initialization and feature flags."""
+        vpr_dir = DATA_DIR / "vpr_index"
+        avail_models = [
+            m for m in ("sample4geo", "megaloc")
+            if (vpr_dir / f"{m}_embeddings.npy").exists()
+        ]
+        active_model = None
+        active_file = vpr_dir / "active_model.json"
+        if active_file.exists():
+            try:
+                import json as _json
+                active_model = _json.loads(active_file.read_text(encoding="utf-8")).get("model")
+            except Exception:
+                pass
+        if not active_model and avail_models:
+            active_model = avail_models[0]
+        num_tiles = 0
+        if active_model and (vpr_dir / f"{active_model}_info.json").exists():
+            try:
+                import json as _json
+                num_tiles = int(_json.loads((vpr_dir / f"{active_model}_info.json").read_text(encoding="utf-8")).get("num_tiles", 0))
+            except Exception:
+                pass
         return {
             "cesium_ion_token": self.cesium_ion_token,
             "google_maps_api_key": self.google_maps_api_key,
             "openrouter_configured": bool(self.openrouter_api_key),
             "openrouter_model": self.openrouter_model,
             "gpu_name": detect_gpu_name(),
+            "vpr_ready": bool(avail_models),
+            "vpr_active_model": active_model,
+            "vpr_available_models": avail_models,
+            "vpr_num_tiles": num_tiles,
         }
 
     def masked_settings(self) -> Dict[str, Any]:

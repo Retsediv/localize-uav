@@ -17,11 +17,15 @@ dependencies = [
     "pyproj>=3.6.1",
     "pandas>=2.0.0",
     "loguru>=0.7.0",
-    # Deep learning + RoMaV2
+    # Deep learning + RoMaV2 + VPR (MegaLoc / Sample4Geo)
     "torch>=2.4.0",
     "torchvision>=0.19.0",
     "kornia>=0.7.3",
     "rich>=14.2.0",
+    "timm>=1.0.0",
+    "huggingface-hub>=0.25.0",
+    "safetensors>=0.4.5",
+    "gdown>=5.2.0",
     "fused-local-corr; sys_platform == 'linux'",
     # Video decoding
     "decord>=0.6.0",
